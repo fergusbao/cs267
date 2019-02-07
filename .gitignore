@@ -1,2 +1,10 @@
 # This document should not be public
 homework/0.md
+
+*.o
+*.out
+*.exe
+hw1/benchmark-naive
+hw1/benchmark-blas
+hw1/benchmark-blocked
+

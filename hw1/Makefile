@@ -11,19 +11,21 @@
 # to the correct implementation automatically. If you wish to compare with
 # other BLAS implementations, check the NERSC documentation.
 
-COMPILER = $(shell cc --version)
+CC ?= cc
+
+COMPILER = $(shell $(CC) --version)
 IS_ICC = $(findstring icc, $(COMPILER))
 
-CC = cc
 OPT = -O2
 CFLAGS = -Wall -std=gnu99 $(OPT)
 LDFLAGS = -Wall
 # librt is needed for clock_gettime
 LDLIBS = -lrt -lblas
 
-ifneq (,$(IS_ICC))
-	LDLIBS = -lrt
-endif
+# recolic: I don't know why ucb removes `-lblas` for icc, which causes a compilation time error.
+#ifneq (,$(IS_ICC))
+#	LDLIBS = -lrt
+#endif
 
 
 targets = benchmark-naive benchmark-blocked benchmark-blas
