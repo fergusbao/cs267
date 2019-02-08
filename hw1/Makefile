@@ -11,16 +11,17 @@
 # to the correct implementation automatically. If you wish to compare with
 # other BLAS implementations, check the NERSC documentation.
 
-CC ?= cc
+CC = cc
 
 COMPILER = $(shell $(CC) --version)
 IS_ICC = $(findstring icc, $(COMPILER))
 
-OPT = -O2
+# OPT = -O2 -mavx
+OPT = -O2 -march=native -mavx
 CFLAGS = -Wall -std=gnu99 $(OPT)
 LDFLAGS = -Wall
 # librt is needed for clock_gettime
-LDLIBS = -lrt -lblas
+LDLIBS = -lblas -lrt
 
 # recolic: I don't know why ucb removes `-lblas` for icc, which causes a compilation time error.
 #ifneq (,$(IS_ICC))
@@ -28,8 +29,8 @@ LDLIBS = -lrt -lblas
 #endif
 
 
-targets = benchmark-naive benchmark-blocked benchmark-blas
-objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o  
+targets = benchmark-naive benchmark-blocked benchmark-blas dgemm-blocked-memaligned dgemm-mem-thanard
+objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o dgemm-blocked-memaligned.o  dgemm-mem-thanard.o
 
 .PHONY : default
 default : all
@@ -43,6 +44,11 @@ benchmark-blocked : benchmark.o dgemm-blocked.o
 	$(CC) -o $@ $^ $(LDLIBS)
 benchmark-blas : benchmark.o dgemm-blas.o
 	$(CC) -o $@ $^ $(LDLIBS)
+dgemm-blocked-memaligned : benchmark.o dgemm-blocked-memaligned.o 
+	 $(CC) -o $@ $^ $(LDLIBS)
+dgemm-mem-thanard : benchmark.o  dgemm-mem-thanard.o
+	 $(CC) -o $@ $^ $(LDLIBS)
+
 
 %.o : %.c
 	$(CC) -c $(CFLAGS) $<
