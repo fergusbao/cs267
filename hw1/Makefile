@@ -16,6 +16,8 @@ CC = cc
 COMPILER = $(shell $(CC) --version)
 IS_ICC = $(findstring icc, $(COMPILER))
 
+IS_CORI = $(shell uname -a | grep cori)
+
 # OPT = -O2 -mavx
 OPT = -O2 -march=native -mavx
 CFLAGS = -Wall -std=gnu99 $(OPT)
@@ -24,9 +26,12 @@ LDFLAGS = -Wall
 LDLIBS = -lblas -lrt
 
 # recolic: I don't know why ucb removes `-lblas` for icc, which causes a compilation time error.
-#ifneq (,$(IS_ICC))
-#	LDLIBS = -lrt
-#endif
+# recolic: ok I know now.
+ifneq (,$(IS_ICC))
+ifneq (,$(IS_CORI))
+	LDLIBS = -lrt
+endif
+endif
 
 
 targets = benchmark-naive benchmark-blocked benchmark-blas dgemm-blocked-memaligned dgemm-mem-thanard
