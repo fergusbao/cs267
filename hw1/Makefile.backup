@@ -11,39 +11,28 @@
 # to the correct implementation automatically. If you wish to compare with
 # other BLAS implementations, check the NERSC documentation.
 
-# I can use `CC=icc make` in bash and `env CC=icc make` in fish.
-CC ?= cc
+CC = cc
 
 COMPILER = $(shell $(CC) --version)
 IS_ICC = $(findstring icc, $(COMPILER))
 
 IS_CORI = $(shell uname -a | grep cori)
 
-# recolic: I don't know why ucb removes `-lblas` for icc, which causes a compilation time error.
-# recolic: ok I know now.
-ifneq (,$(IS_ICC))
-$(info Using Intel C++ compiler...)
-	OPT = -O3 -ansi-alias
-ifneq (,$(IS_CORI))
-$(info Using Intel C++ compiler on CORI...)
-	OPT = -O3 -ansi-alias -march=haswell -xHASWELL
-endif
-else
-$(info Warning: Not using Intel C++ compiler...)
-	# OPT = -O3 -mavx
-	OPT = -O3 -march=native -mavx
-endif
-
+# OPT = -O2 -mavx
+OPT = -O2 -march=native -mavx
 CFLAGS = -Wall -std=gnu99 $(OPT)
 LDFLAGS = -Wall
 # librt is needed for clock_gettime
 LDLIBS = -lblas -lrt
 
+# recolic: I don't know why ucb removes `-lblas` for icc, which causes a compilation time error.
+# recolic: ok I know now.
 ifneq (,$(IS_ICC))
 ifneq (,$(IS_CORI))
 	LDLIBS = -lrt
 endif
 endif
+
 
 targets = benchmark-naive benchmark-blocked benchmark-blas dgemm-blocked-memaligned dgemm-mem-thanard
 objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o dgemm-blocked-memaligned.o  dgemm-mem-thanard.o

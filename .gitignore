@@ -7,4 +7,6 @@ homework/0.md
 hw1/benchmark-naive
 hw1/benchmark-blas
 hw1/benchmark-blocked
+hw1/dgemm-blocked-memaligned
+hw1/dgemm-mem-thanard
 
