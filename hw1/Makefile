@@ -14,6 +14,9 @@
 # I can use `CC=icc make` in bash and `env CC=icc make` in fish.
 CC ?= cc
 
+# My CPU is also haswell. If I want to run intel vtune on my PC, I can forcefully set it to "-march=haswell -xHASWELL -g".
+APPEND_OPT ?= 
+
 COMPILER = $(shell $(CC) --version)
 IS_ICC = $(findstring icc, $(COMPILER))
 
@@ -23,10 +26,10 @@ IS_CORI = $(shell uname -a | grep cori)
 # recolic: ok I know now.
 ifneq (,$(IS_ICC))
 $(info Using Intel C++ compiler...)
-	OPT = -O3 -ansi-alias
+	OPT = -O3 -ansi-alias -restrict
 ifneq (,$(IS_CORI))
 $(info Using Intel C++ compiler on CORI...)
-	OPT = -O3 -ansi-alias -march=haswell -xHASWELL
+	OPT = -O3 -ansi-alias -restrict -march=haswell -xHASWELL
 endif
 else
 $(info Warning: Not using Intel C++ compiler...)
@@ -34,7 +37,7 @@ $(info Warning: Not using Intel C++ compiler...)
 	OPT = -O3 -march=native -mavx
 endif
 
-CFLAGS = -Wall -std=gnu99 $(OPT)
+CFLAGS = -Wall -std=gnu99 $(OPT) $(APPEND_OPT)
 LDFLAGS = -Wall
 # librt is needed for clock_gettime
 LDLIBS = -lblas -lrt
@@ -45,8 +48,8 @@ ifneq (,$(IS_CORI))
 endif
 endif
 
-targets = benchmark-naive benchmark-blocked benchmark-blas dgemm-blocked-memaligned dgemm-mem-thanard
-objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o dgemm-blocked-memaligned.o  dgemm-mem-thanard.o
+targets = benchmark-naive benchmark-blocked benchmark-blas dgemm-blocked-memaligned dgemm-mem-thanard target-immintrin
+objects = benchmark.o dgemm-naive.o dgemm-blocked.o dgemm-blas.o dgemm-blocked-memaligned.o  dgemm-mem-thanard.o target-immintrin.o
 
 .PHONY : default
 default : all
@@ -61,9 +64,11 @@ benchmark-blocked : benchmark.o dgemm-blocked.o
 benchmark-blas : benchmark.o dgemm-blas.o
 	$(CC) -o $@ $^ $(LDLIBS)
 dgemm-blocked-memaligned : benchmark.o dgemm-blocked-memaligned.o 
-	 $(CC) -o $@ $^ $(LDLIBS)
+	$(CC) -o $@ $^ $(LDLIBS)
 dgemm-mem-thanard : benchmark.o  dgemm-mem-thanard.o
-	 $(CC) -o $@ $^ $(LDLIBS)
+	$(CC) -o $@ $^ $(LDLIBS)
+target-immintrin : benchmark.o target-immintrin.o
+	$(CC) -o $@ $^ $(LDLIBS)
 
 
 %.o : %.c
