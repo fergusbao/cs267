@@ -15,6 +15,7 @@ LDLIBS = -lrt -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_lp64.a $(MKL
 */
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <immintrin.h>
 const char* dgemm_desc = "Simple blocked dgemm.";
 
@@ -35,20 +36,31 @@ static void print_matrix(double* A, int M, int N, int lda){
   printf("\n");
 }
 
+typedef double* __restrict__  __attribute__((align_value (64))) a_ptr;
+#define _r_mm256_load_pd(p) _mm256_castsi256_pd(_mm256_load_si256((__m256i*)(p)))
+
 /*
 Multiply two 4x4 matrices.
 */
-static void avx_mult(double* A, double* B, double* restrict C, int lda, int ldb){
-  __m256d a1 = _mm256_load_pd(A);
-  __m256d a2 = _mm256_load_pd(A+lda);
-  __m256d a3 = _mm256_load_pd(A+2*lda);
-  __m256d a4 = _mm256_load_pd(A+3*lda);
+__attribute__((hot)) static void avx_mult(a_ptr A, a_ptr B, a_ptr C, int _lda, int ldb){
+  __assume_aligned(A, 64);
+  __assume_aligned(B, 64);
+  __assume_aligned(C, 64);
+  static const int lda = 4;
+  __assume(lda == 4);
+
+  __m256d a1 = _r_mm256_load_pd(A);
+  __m256d a2 = _r_mm256_load_pd(A+lda);
+  __m256d a3 = _r_mm256_load_pd(A+2*lda);
+  __m256d a4 = _r_mm256_load_pd(A+3*lda);
 
   __m256d tmp = _mm256_mul_pd(a1, _mm256_broadcast_sd(B));
   tmp = _mm256_fmadd_pd(a2, _mm256_broadcast_sd(B+1), tmp);
   tmp = _mm256_fmadd_pd(a3, _mm256_broadcast_sd(B+2), tmp);
   tmp = _mm256_fmadd_pd(a4, _mm256_broadcast_sd(B+3), tmp);
   _mm256_store_pd(C, _mm256_add_pd(_mm256_load_pd(C), tmp));
+  // recolic: you didn't notice that icc is generating non-aligned instruction here!!!!!!!
+  //     this function cost 54% CPU time of the whole program SO BE SERIOUS PLEASE!
 
   // C+4
   tmp = _mm256_mul_pd(a1, _mm256_broadcast_sd(B+ldb));
@@ -163,12 +175,17 @@ static void do_block (int lda, int ldb, int ldc, int M, int N, int K, double* A,
     }
 }
 
+#define recolic_assert(cond, msg) if(!(cond)) {perror(msg);abort();}
+
 /* This routine performs a dgemm operation
  *  C := C + A * B
  * where A, B, and C are lda-by-lda matrices stored in column-major format. 
  * On exit, A and B maintain their input values. */ 
 void square_dgemm (int lda, double* A, double* B, double* C)
 {
+  recolic_assert(((unsigned long long)A & 63) == 0, "A should be aligned to 64 bytes");
+  recolic_assert(((unsigned long long)B & 63) == 0, "B should be aligned to 64 bytes");
+  recolic_assert(((unsigned long long)C & 63) == 0, "C should be aligned to 64 bytes");
   /* For each block-row of A */ 
   for (int j = 0; j < lda; j += BLOCK_SIZE)
     /* For each block-column of B */
