@@ -97,7 +97,9 @@ namespace r267 {
 #if defined(_OPENMP)
     namespace omp {
         static inline void compute_forces(const gridded_buffer_t &grids, buffer_t &particles, double *dmin, double *davg, int *navg) {
-            for(auto &particle : particles) {
+            #pragma omp parallel for
+            for(size_t cter = 0; cter < particles.size(); ++cter) {
+                auto &particle = particles[cter];
                 particle.ax = particle.ay = 0;
             }
             // I'm not sure if grid is sparse. I assume that it's dense.
