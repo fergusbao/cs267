@@ -7,7 +7,7 @@ CXX ?= icpc # sorry
 MPCXX ?= CXX
 OPENMP ?= -fopenmp #Note: this is the flag for Intel compilers. Change this to -fopenmp for GNU compilers. See http://www.nersc.gov/users/computational-systems/edison/programming/using-openmp/
 APP ?= 
-CFLAGS ?= -O3 -std=c++14 $(APP) -march=haswell -xHASWELL
+CFLAGS ?= -O3 -std=c++14 $(APP) -march=haswell -xHASWELL -fast -ipo -fno-alias -fno-exceptions -fno-fnalias -mtune=haswell -unroll -no-ansi-alias -ipo-seperate
 LIBS ?= -lm # -lr
 
 LAUNCH_FROM_BUILD_FISH ?= f
@@ -18,14 +18,14 @@ TARGETS = serial openmp mpi autograder
 
 all:	$(TARGETS)
 
-serial: serial.o common.o
-	$(CXX) -o $@ serial.o common.o $(LIBS)
+serial: 
+	$(CXX) -o $@ $(CFLAGS) serial.cpp common.cpp $(LIBS)
 autograder: autograder.o common.o
-	$(CXX) -o $@ autograder.o common.o $(LIBS)
-openmp: openmp.o common.o
-	$(CXX) -o $@ $(OPENMP) openmp.o common.o $(LIBS)
+	$(CXX) -o $@ $(CFLAGS) autograder.o common.o $(LIBS)
+openmp: 
+	$(CXX) -o $@ $(CFLAGS) $(OPENMP) openmp.cpp common.cpp $(LIBS)
 mpi: mpi.o common.o
-	$(MPCXX) -o $@ $(MPILIBS) mpi.o common.o $(LIBS)
+	$(MPCXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.o common.o $(LIBS)
 
 autograder.o: autograder.cpp common.h
 	$(CXX) -c $(CFLAGS) autograder.cpp

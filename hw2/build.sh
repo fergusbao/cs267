@@ -1,17 +1,17 @@
 #!/bin/bash
 
-function build_target_ipo () {
+function build_target_pgo () {
     target="$1"
     prof_dir="./prof_$target"
 
-    echo "Building target $target with IPO technic..."
+    echo "Building target $target with PGO technic..."
 
     CXX=icpc APP="-prof-gen -prof-dir$prof_dir" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target &&
     rm -rf $prof_dir &&
     mkdir $prof_dir &&
     eval ./$target -n 5000 &&
     rm -f *.o ./$target &&
-    CXX=icpc APP="-prof-use -ipo -prof-dir$prof_dir" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target &&
+    CXX=icpc APP="-prof-use -prof-dir$prof_dir" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target &&
     rm -rf $prof_dir
 
     return $?
@@ -26,8 +26,8 @@ function build_target_normal () {
 }
 
 make clean &&
-build_target_ipo serial &&
-build_target_ipo openmp &&
+build_target_pgo serial &&
+build_target_pgo openmp &&
 build_target_normal autograder
 
 exit $?
