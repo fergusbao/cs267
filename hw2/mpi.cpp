@@ -38,6 +38,12 @@ int main(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    {
+        int magic = std::sqrt(n_proc);
+        if(magic * magic != n_proc)
+            throw std::invalid_argument("n_proc must be someInt^2. Or it will be automatically cut to an available number.");
+    }
+
     //
     //  allocate generic resources
     //

@@ -19,10 +19,12 @@ TARGETS = serial openmp mpi autograder
 all:	$(TARGETS)
 
 serial: 
+	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
 	$(CXX) -o $@ $(CFLAGS) serial.cpp common.cpp $(LIBS)
 autograder: autograder.o common.o
 	$(CXX) -o $@ $(CFLAGS) autograder.o common.o $(LIBS)
 openmp: 
+	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
 	$(CXX) -o $@ $(CFLAGS) $(OPENMP) openmp.cpp common.cpp $(LIBS)
 mpi: mpi.o common.o
 	$(MPCXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.o common.o $(LIBS)
