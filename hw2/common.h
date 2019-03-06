@@ -66,6 +66,7 @@ constexpr double min_r = (cutoff / 100);
 constexpr double dt = 0.0005;
 
 extern double size;
+extern size_t grid_size;
 ///////////////////////// var in common.cpp
 
 

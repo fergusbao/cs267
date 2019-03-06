@@ -30,14 +30,12 @@ namespace r267 {
     // The outter vector is fixed-length. The inner vector contains all particle in this grid.
     using buffer_t = std::vector<particle_t>; // All particles in one buffer.
 
-    static inline size_t XY(size_t x, size_t y) {
-        static const auto grid_size = std::ceil(size / cutoff);
+    __attribute__((const)) static inline size_t XY(size_t x, size_t y) {
         // access the matrix `grids` with x,y
         return x*grid_size + y;
     }
 
     static inline gridded_buffer_t do_grid(buffer_t &particles) {
-        const auto grid_size = std::ceil(size / cutoff);
         std::vector<std::reference_wrapper<particle_t>> _shit(0, std::ref(shit));
         gridded_buffer_t grids(grid_size * grid_size, grid_info(_shit));
 
@@ -58,7 +56,6 @@ namespace r267 {
                 particle.ax = particle.ay = 0;
             }
             // I'm not sure if grid is sparse. I assume that it's dense.
-            static const auto grid_size = std::ceil(size / cutoff);
             for(auto y = 0; y < grid_size; ++y) {
                 for(auto x = 0; x < grid_size; ++x) {
                     auto &grid = grids[XY(x, y)];
@@ -97,9 +94,7 @@ namespace r267 {
 #if defined(_OPENMP)
     namespace omp {
         static inline void compute_forces(const gridded_buffer_t &grids, buffer_t &particles, double *dmin, double *davg, int *navg) {
-            #pragma omp parallel for
-            for(size_t cter = 0; cter < particles.size(); ++cter) {
-                auto &particle = particles[cter];
+            for(auto &particle : particles) {
                 particle.ax = particle.ay = 0;
             }
             // I'm not sure if grid is sparse. I assume that it's dense.

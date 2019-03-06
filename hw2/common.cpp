@@ -10,6 +10,7 @@
 #include <algorithm>
 
 double size;
+size_t grid_size;
 
 //
 //  timer
@@ -29,7 +30,10 @@ double read_timer() {
 //
 //  keep density constant
 //
-void set_size(int n) { size = sqrt(density * n); }
+void set_size(int n) {
+    size = sqrt(density * n);
+    grid_size = std::ceil(size / cutoff);
+}
 
 //
 //  Initialize the particle positions and velocities

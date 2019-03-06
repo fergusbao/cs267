@@ -3,7 +3,7 @@
 #
 # Intel Compilers are loaded by default; for other compilers please check the module list
 #
-CXX = icpc # sorry
+CXX ?= icpc # sorry
 MPCXX ?= CXX
 OPENMP ?= -fopenmp #Note: this is the flag for Intel compilers. Change this to -fopenmp for GNU compilers. See http://www.nersc.gov/users/computational-systems/edison/programming/using-openmp/
 APP ?= 
@@ -13,6 +13,8 @@ LIBS ?= -lm # -lr
 LAUNCH_FROM_BUILD_FISH ?= f
 
 TARGETS = serial openmp mpi autograder
+
+.PHONY: serial autograder openmp mpi
 
 all:	$(TARGETS)
 
