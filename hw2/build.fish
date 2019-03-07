@@ -30,6 +30,7 @@ end
 make clean
 and build_target_pgo serial
 and build_target_pgo openmp
+and build_target_pgo mpi
 and build_target_normal autograder
 
 exit $status

@@ -26,8 +26,8 @@ autograder: autograder.o common.o
 openmp: 
 	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
 	$(CXX) -o $@ $(CFLAGS) $(OPENMP) openmp.cpp common.cpp $(LIBS)
-mpi: mpi.o common.o
-	$(MPCXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.o common.o $(LIBS)
+mpi:
+	$(MPCXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.cpp common.cpp $(LIBS)
 
 autograder.o: autograder.cpp common.h
 	$(CXX) -c $(CFLAGS) autograder.cpp

@@ -3,6 +3,8 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "grid.hpp"
+#include <cmath>
 
 //
 //  benchmarking program
@@ -50,30 +52,14 @@ int main(int argc, char **argv) {
     FILE *fsave = savename && rank == 0 ? fopen(savename, "w") : NULL;
     FILE *fsum = sumname && rank == 0 ? fopen(sumname, "a") : NULL;
 
-    particle_t *particles = (particle_t *)malloc(n * sizeof(particle_t));
+    //particle_t *particles = (particle_t *)malloc(n * sizeof(particle_t));
+    r267::buffer_t real_buffer(n);
+    particle_t *particles = real_buffer.data();
 
     MPI_Datatype PARTICLE;
     MPI_Type_contiguous(6, MPI_DOUBLE, &PARTICLE);
+    static_assert(sizeof(particle_t) == 6*sizeof(double));
     MPI_Type_commit(&PARTICLE);
-
-    //
-    //  set up the data partitioning across processors
-    //
-    int particle_per_proc = (n + n_proc - 1) / n_proc;
-    int *partition_offsets = (int *)malloc((n_proc + 1) * sizeof(int));
-    for (int i = 0; i < n_proc + 1; i++)
-        partition_offsets[i] = min(i * particle_per_proc, n);
-
-    int *partition_sizes = (int *)malloc(n_proc * sizeof(int));
-    for (int i = 0; i < n_proc; i++)
-        partition_sizes[i] = partition_offsets[i + 1] - partition_offsets[i];
-
-    //
-    //  allocate storage for local partition
-    //
-    int nlocal = partition_sizes[rank];
-    particle_t *local = (particle_t *)malloc(nlocal * sizeof(particle_t));
-
     //
     //  initialize and distribute the particles (that's fine to leave it
     //  unoptimized)
@@ -81,8 +67,8 @@ int main(int argc, char **argv) {
     set_size(n);
     if (rank == 0)
         init_particles(n, particles);
-    MPI_Scatterv(particles, partition_sizes, partition_offsets, PARTICLE, local,
-                 nlocal, PARTICLE, 0, MPI_COMM_WORLD);
+    
+    MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD);
 
     //
     //  simulate a number of time steps
@@ -92,28 +78,35 @@ int main(int argc, char **argv) {
         navg = 0;
         dmin = 1.0;
         davg = 0.0;
-        //
-        //  collect all global data locally (not good idea to do)
-        //
-        MPI_Allgatherv(local, nlocal, PARTICLE, particles, partition_sizes,
-                       partition_offsets, PARTICLE, MPI_COMM_WORLD);
 
-        //
-        //  save current step if necessary (slightly different semantics than in
-        //  other codes)
-        //
-        if (find_option(argc, argv, "-no") == -1)
-            if (fsave && (step % SAVEFREQ) == 0)
-                save(fsave, n, particles);
+        auto myBuffer = r267::mpi::init_my_buffer(rank, n_proc, real_buffer);
 
-        //
-        //  compute all forces
-        //
-        for (int i = 0; i < nlocal; i++) {
-            local[i].ax = local[i].ay = 0;
-            for (int j = 0; j < n; j++)
-                apply_force(local[i], particles[j], &dmin, &davg, &navg);
-        }
+        r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
+
+        r267::mpi::move_and_reown(n_proc, myBuffer, real_buffer);
+
+        ////
+        ////  collect all global data locally (not good idea to do)
+        ////
+        //MPI_Allgatherv(local, nlocal, PARTICLE, particles, partition_sizes,
+        //               partition_offsets, PARTICLE, MPI_COMM_WORLD);
+
+        ////
+        ////  save current step if necessary (slightly different semantics than in
+        ////  other codes)
+        ////
+        //if (find_option(argc, argv, "-no") == -1)
+        //    if (fsave && (step % SAVEFREQ) == 0)
+        //        save(fsave, n, particles);
+
+        ////
+        ////  compute all forces
+        ////
+        //for (int i = 0; i < nlocal; i++) {
+        //    local[i].ax = local[i].ay = 0;
+        //    for (int j = 0; j < n; j++)
+        //        apply_force(local[i], particles[j], &dmin, &davg, &navg);
+        //}
 
         if (find_option(argc, argv, "-no") == -1) {
 
@@ -136,11 +129,11 @@ int main(int argc, char **argv) {
             }
         }
 
-        //
-        //  move particles
-        //
-        for (int i = 0; i < nlocal; i++)
-            move(local[i]);
+        ////
+        ////  move particles
+        ////
+        //for (int i = 0; i < nlocal; i++)
+        //    move(local[i]);
     }
     simulation_time = read_timer() - simulation_time;
 
