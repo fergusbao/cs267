@@ -4,11 +4,12 @@
 # Intel Compilers are loaded by default; for other compilers please check the module list
 #
 CXX ?= icpc # sorry
-MPCXX ?= CXX
+MPICXX ?= mpiicpc
 OPENMP ?= -fopenmp #Note: this is the flag for Intel compilers. Change this to -fopenmp for GNU compilers. See http://www.nersc.gov/users/computational-systems/edison/programming/using-openmp/
 APP ?= 
-CFLAGS ?= -O3 -std=c++14 $(APP) -march=haswell -xHASWELL -fast -ipo -fno-alias -fno-exceptions -fno-fnalias -mtune=haswell -unroll -no-ansi-alias -ipo-seperate
-LIBS ?= -lm # -lr
+CFLAGS ?= -O3 -std=c++14 $(APP) # -march=haswell -xHASWELL -fast -ipo -fno-alias -fno-exceptions -fno-fnalias -mtune=haswell -unroll -no-ansi-alias -ipo-seperate
+LIBS ?= -lm -lr
+MPILIBS ?= # -rpath-link /opt/intel/compilers_and_libraries_2019.1.144/linux/mpi/intel64/libfabric/lib/libfabric.so.1
 
 LAUNCH_FROM_BUILD_FISH ?= f
 
@@ -27,7 +28,7 @@ openmp:
 	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
 	$(CXX) -o $@ $(CFLAGS) $(OPENMP) openmp.cpp common.cpp $(LIBS)
 mpi:
-	$(MPCXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.cpp common.cpp $(LIBS)
+	$(MPICXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.cpp common.cpp $(LIBS)
 
 autograder.o: autograder.cpp common.h
 	$(CXX) -c $(CFLAGS) autograder.cpp
@@ -36,7 +37,7 @@ openmp.o: openmp.cpp common.h
 serial.o: serial.cpp common.h
 	$(CXX) -c $(CFLAGS) serial.cpp
 mpi.o: mpi.cpp common.h
-	$(MPCXX) -c $(CFLAGS) mpi.cpp
+	$(MPICXX) -c $(CFLAGS) mpi.cpp
 common.o $(LIBS): common.cpp common.h
 	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
 	$(CXX) -c $(CFLAGS) common.cpp

@@ -256,7 +256,7 @@ namespace r267 {
                 #define _RLIB_IMPL_R267_DIR_SET(xORy, val, whichDir) \
                     if(xORy == val) { \
                         if(dir != direction_t::IN) return nullptr; \
-                        const size_t global_edge = (val==-1) ? 0 : buffer_global_size; \
+                        const size_t global_edge = (val==-1) ? 0 : (buffer_global_size-1); \
                         if(buf.global_##xORy == global_edge) return nullptr; \
                         dir = direction_t::whichDir; \
                     }
@@ -298,20 +298,22 @@ namespace r267 {
             static const size_t buffer_global_size = std::sqrt(how_many_proc);
             static const size_t grid_xy_range = std::ceil((float)grid_size / (float)buffer_global_size); 
 
-            for(auto x = 0; x < grid_xy_range; ++x) {
-                if(grid_xy_range*buf.global_x + x >= grid_size)
+            for(auto y = 0; y < grid_xy_range; ++y) {
+                if(grid_xy_range*buf.global_y + y >= grid_size)
                     continue;
-                for(auto y = 0; y < grid_xy_range; ++y) {
-                    if(grid_xy_range*buf.global_y + y >= grid_size)
+                for(auto x = 0; x < grid_xy_range; ++x) {
+                    if(grid_xy_range*buf.global_x + x >= grid_size)
                         continue;
                     auto &working_grid = buf.myBuffer.at(grid_xy_range*x + y);
 
                     #define _RLIB_IMPL_R267_AUTOGEN_FUCK_NEIGHBOR(_x, _y) \
                     { \
-                        const auto &neighbor_grid_info = *impl::access_fake_mmap(_x, _y, buffer_global_size, grid_xy_range, buf); \
-                        for(auto &particle_offset : working_grid.particles_by_offset) { \
-                            for(const auto &neighbor_particle_offset : neighbor_grid_info.particles_by_offset) { \
-                                apply_force(particles[particle_offset], particles[neighbor_particle_offset], dmin, davg, navg); \
+                        auto ptr_neighbor_grid_info = impl::access_fake_mmap(_x, _y, buffer_global_size, grid_xy_range, buf); \
+                            if(ptr_neighbor_grid_info != nullptr) { \
+                            for(auto &particle_offset : working_grid.particles_by_offset) { \
+                                for(const auto &neighbor_particle_offset : ptr_neighbor_grid_info->particles_by_offset) { \
+                                    apply_force(particles[particle_offset], particles[neighbor_particle_offset], dmin, davg, navg); \
+                                } \
                             } \
                         } \
                     }

@@ -6,6 +6,10 @@
 #include "grid.hpp"
 #include <cmath>
 
+//#include <rlib/stdio.hpp>
+//#include <rlib/string.hpp>
+//using namespace rlib::literals;
+
 //
 //  benchmarking program
 //
@@ -68,6 +72,7 @@ int main(int argc, char **argv) {
     if (rank == 0)
         init_particles(n, particles);
     
+    //rlib::println("DEBUG> n_proc={}, rank={}, hello."_format(n_proc, rank));
     MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD);
 
     //
@@ -176,10 +181,6 @@ int main(int argc, char **argv) {
     //
     if (fsum)
         fclose(fsum);
-    free(partition_offsets);
-    free(partition_sizes);
-    free(local);
-    free(particles);
     if (fsave)
         fclose(fsave);
 
