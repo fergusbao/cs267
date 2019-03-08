@@ -9,6 +9,8 @@
 //#include <rlib/stdio.hpp>
 //#include <rlib/string.hpp>
 //using namespace rlib::literals;
+#include <iostream>
+#include <unistd.h>
 
 //
 //  benchmarking program
@@ -50,6 +52,14 @@ int main(int argc, char **argv) {
             throw std::invalid_argument("n_proc must be someInt^2. Or it will be automatically cut to an available number.");
     }
 
+    //if (rank == ) { // wait for debugger
+    //    int i = 0;
+    //    printf("PID %d ready for attach\n", getpid());
+    //    fflush(stdout);
+    //    while (0 == i)
+    //        sleep(5);
+    //}
+
     //
     //  allocate generic resources
     //
@@ -73,8 +83,11 @@ int main(int argc, char **argv) {
         init_particles(n, particles);
     
     //rlib::println("DEBUG> n_proc={}, rank={}, hello."_format(n_proc, rank));
+    printf("nproc=%d, rank=%d\n", n_proc, rank);
     rlib::mpi_assert(MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD), "mpi_bcast");
+    printf("bcast done at rank %d\n", rank);
     rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+    printf("bcast barrier passed at rank %d\n", rank);
 
     //
     //  simulate a number of time steps
@@ -85,11 +98,19 @@ int main(int argc, char **argv) {
         dmin = 1.0;
         davg = 0.0;
 
+        printf("3\n");
         auto myBuffer = r267::mpi::init_my_buffer(rank, n_proc, real_buffer);
 
+        printf("2\n");
         r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
 
+        printf("1\n");
         r267::mpi::move_and_reown(n_proc, myBuffer, real_buffer);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(rank == 0)
+            printf("Done a round!\n");
+
+        //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
         ////
         ////  collect all global data locally (not good idea to do)

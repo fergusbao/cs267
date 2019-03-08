@@ -15,6 +15,8 @@
 #include <cassert>
 #include <memory>
 #include <utility>
+#include <set>
+#include <unordered_set>
 
 #ifndef DISABLE_MPI
 #include "mpi_ass.hpp"
@@ -172,6 +174,83 @@ namespace r267 {
             std::array<neighbor_t, 4> neighbors; // {left, right, up, down}
         };
 
+        static inline void move_and_reown(const int how_many_proc, const particle_gridded_buffer_t &buf, buffer_t &particles) {
+            static const size_t buffer_global_size = std::sqrt(how_many_proc);
+            static const size_t grid_xy_range = std::ceil((float)grid_size / (float)buffer_global_size); 
+
+            auto x_range_begin = cutoff * (buf.global_x * grid_xy_range),
+                 y_range_begin = cutoff * (buf.global_y * grid_xy_range),
+                 x_range_end = cutoff * ((buf.global_x+1) * grid_xy_range),
+                 y_range_end = cutoff * ((buf.global_y+1) * grid_xy_range);
+
+            struct moved_particle_t {
+                size_t index;
+                decltype(particle_t().x) x, y;
+                decltype(particle_t().vx) vx, vy;
+            };
+
+            std::list<std::pair<MPI_Request, moved_particle_t>> free_queue; // Free these buffers after isend finishes.
+
+            for(auto &grid : buf.myBuffer) {
+                for(auto particle_offset : grid.particles_by_offset) {
+                    auto &par = particles[particle_offset];
+                    ::move(par);
+                    if(par.x < x_range_begin or par.x > x_range_end or par.y < y_range_begin or par.y > y_range_end) {
+                        const auto x = std::floor(par.x / cutoff);
+                        const auto y = std::floor(par.y / cutoff);
+ 
+                        // report this particle to his new owner!
+                        const auto his_owner_global_x = x / grid_xy_range;
+                        const auto his_owner_global_y = y / grid_xy_range;
+                        const auto his_owner_rank = his_owner_global_x * buffer_global_size + his_owner_global_y;
+
+                        free_queue.emplace_front(MPI_Request(), moved_particle_t {
+                            .index = particle_offset, 
+                            .x = par.x,
+                            .y = par.y,
+                            .vx = par.vx,
+                            .vy = par.vy,
+                        });
+                        auto &reqAndPar = *free_queue.begin();
+                        // offset as tag!
+                        rlib::mpi_assert(MPI_Isend(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset, MPI_COMM_WORLD, &reqAndPar.first));
+                    }
+                }
+            }
+
+            rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+           
+            // TODO: Report all particle that leaving my area to his new owner.
+            // TODO: receive all coming particles!
+            while(true) {
+                int have_msg_flag = 0;
+                MPI_Status stat;
+                rlib::mpi_assert(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &have_msg_flag, &stat));
+                if(!have_msg_flag)
+                    break;
+
+                //int count;
+                //MPI_Get_count(&stat, MPI_CHAR, &count);
+                //if(count != sizeof(moved_particle_t)/sizeof(char)) {
+                //    printf("SHIT %d!=%d\n", count, sizeof(moved_particle_t)/sizeof(char));
+                //}
+                //static_assert(sizeof(moved_particle_t) == 40, "fucking");
+                moved_particle_t received_msg;
+                rlib::mpi_assert(MPI_Recv(&received_msg, sizeof(received_msg)/sizeof(char), MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
+                
+                particles[received_msg.index].x = received_msg.x;
+                particles[received_msg.index].y = received_msg.y;
+                particles[received_msg.index].vx = received_msg.vx;
+                particles[received_msg.index].vy = received_msg.vy;
+            }
+
+            // TODO: free the free_queue
+            for(auto &ele : free_queue) {
+                rlib::mpi_assert(MPI_Wait(&ele.first, MPI_STATUS_IGNORE));
+                // on stack, no need to free. just return.
+            }
+        }
+
         namespace impl {
             static inline auto do_grid_for_mpi(const buffer_t &particles, std::vector<grid_info_2> &grids, size_t grid_x_begin, size_t grid_y_begin, size_t grid_xy_range) {
                 auto x_range_begin = cutoff * grid_x_begin,
@@ -245,7 +324,7 @@ namespace r267 {
                 // down
                 neighbor_t n;
                 n.rank = rank + (int)buffer_global_size;
-                n.myShare_begin_index = grid_xy_range * grid_xy_range - 1;
+                n.myShare_begin_index = grid_xy_range * (grid_xy_range - 1);
                 n.myShare_step = 1;
                 n.hisShare_begin_x = 0;
                 n.hisShare_begin_y = (int)grid_xy_range;
@@ -304,11 +383,11 @@ namespace r267 {
                     decltype(particle_t().x) x, y;
                 };
                 // msg: [gridDataBeginIndex ...] + [grid0Data0, gri0Data1, grid2Data0, ...]
-                static const auto compose_msg = [](const auto shareSize, const grid_info_2 *pGridsBuf, const auto step, const buffer_t &real_buffer) -> auto {
+                static const auto compose_msg = [](const auto shareSize, const std::vector<grid_info_2> &gridsBuf, const auto begin, const auto step, const buffer_t &real_buffer) -> auto {
                     size_t particles_to_send_count = 0;
                     for(auto cter = 0; cter < shareSize; ++cter) {
-                        const auto shift_index = cter * step;
-                        particles_to_send_count += pGridsBuf[shift_index].particles_by_offset.size();
+                        const auto shift_index = begin + cter * step;
+                        particles_to_send_count += gridsBuf.at(shift_index).particles_by_offset.size();
                     }
 
                     const size_t head_length = shareSize * sizeof(size_t);
@@ -324,11 +403,12 @@ namespace r267 {
                     auto *head_ptr_backup = head_ptr;
 
                     for(auto cter = 0; cter < shareSize; ++cter) {
-                        const auto shift_index = cter * step;
+                        const auto shift_index = begin + cter * step;
                         *head_ptr = body_ptr - body_ptr_backup;
                         ++head_ptr;
-                        for(const auto &particle_offset : pGridsBuf[shift_index].particles_by_offset) {
-                            *body_ptr = neighbors_particle_t {particle_offset, real_buffer[particle_offset].x, real_buffer[particle_offset].y};
+                        for(const size_t particle_offset : gridsBuf.at(shift_index).particles_by_offset) {
+                            auto tmp = neighbors_particle_t {particle_offset, real_buffer.at(particle_offset).x, real_buffer.at(particle_offset).y};
+                            *body_ptr = tmp;
                             ++body_ptr;
                         }
                     }
@@ -358,18 +438,21 @@ namespace r267 {
                     }
                 }; // apply_recvmsg_end
 
+                std::list<std::pair<MPI_Request, void *>> free_queue; // Free these buffers after isend finishes.
                 for(auto &neighbor : buf.neighbors) {
                     if(not neighbor.valid)
                         continue;
-                    const auto *myshare_begin_ptr = buf.myBuffer.data() + neighbor.myShare_begin_index;
+                    //const auto *myshare_begin_ptr = buf.myBuffer.data() + neighbor.myShare_begin_index;
 
-                    void *msg_ptr; size_t msg_size;
-                    std::tie(msg_ptr, msg_size) = compose_msg(shareSize, myshare_begin_ptr, neighbor.myShare_step, real_buffer);
-                    rlib_defer([=](){std::free(msg_ptr);});
+                    auto retPair = compose_msg(shareSize, buf.myBuffer, neighbor.myShare_begin_index, neighbor.myShare_step, real_buffer);
+                    void *msg_ptr = retPair.first; size_t msg_size = retPair.second;
+                    //rlib_defer([=](){std::free(msg_ptr);});
 
-                    // TODO: Async send! The receiver can probe the length
-
-
+                    // Async send! The receiver can probe the length
+                    MPI_Request req;
+                    rlib::mpi_assert(MPI_Isend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, 0, MPI_COMM_WORLD, &req));
+                    free_queue.push_back(std::make_pair(req, msg_ptr));
+                    // Not necessary to wait for it! Because recv is sync.
                 }
 
                 for(auto &neighbor : buf.neighbors) {
@@ -377,7 +460,7 @@ namespace r267 {
                         continue;
                     
                     void *his_msg_ptr; size_t his_msg_size;
-                    //TODO: recv
+                    //blocked recv
                     MPI_Status stat;
                     rlib::mpi_assert(MPI_Probe(neighbor.rank, MPI_ANY_TAG, MPI_COMM_WORLD, &stat));
 
@@ -393,6 +476,12 @@ namespace r267 {
                     neighbor.hisShare_data.clear();
                     neighbor.hisShare_data.resize(shareSize);
                     apply_received_msg(shareSize, neighbor.hisShare_data, real_buffer, his_msg_ptr, his_msg_size);
+                }
+
+                // free all buffers for MPI_Isend
+                for(auto &ele : free_queue) {
+                    rlib::mpi_assert(MPI_Wait(&ele.first, MPI_STATUS_IGNORE));
+                    std::free(ele.second);
                 }
             } // end function mpi_exchange_shares
         } // end namespace impl
@@ -442,28 +531,6 @@ namespace r267 {
             }
         }
 
-        static inline void move_and_reown(const int how_many_proc, const particle_gridded_buffer_t &buf, buffer_t &particles) {
-            static const size_t buffer_global_size = std::sqrt(how_many_proc);
-            static const size_t grid_xy_range = std::ceil((float)grid_size / (float)buffer_global_size); 
-
-            auto x_range_begin = cutoff * (buf.global_x*grid_xy_range),
-                y_range_begin = cutoff * (buf.global_y*grid_xy_range),
-                x_range_end = cutoff * ((buf.global_x+1) * grid_xy_range),
-                y_range_end = cutoff * ((buf.global_y+1) * grid_xy_range);
-
-            for(auto &grid : buf.myBuffer) {
-                for(auto particle_offset : grid.particles_by_offset) {
-                    auto &par = particles[particle_offset];
-                    ::move(par);
-                    if(par.x < x_range_begin or par.x > x_range_end or par.y < y_range_begin or par.y > y_range_end) {
-                        // report this particle to his new owner!
-                    }
-                }
-            }
-           
-            // TODO: Report all particle that leaving my area to his new owner.
-            // TODO: receive all comming particles!
-        }
     } // end namespace mpi
 #endif // defined DISABLE_MPI
 } // end namespace r267
