@@ -21,7 +21,6 @@
 #ifndef DISABLE_MPI
 #include "mpi_ass.hpp"
 #endif
-#include "scope_guard.hpp"
 
 #if defined(_OPENMP)
 #if _OPENMP < 201307
@@ -465,13 +464,14 @@ namespace r267 {
                     his_msg_size = count;
 
                     his_msg_ptr = std::malloc(his_msg_size);
-                    rlib_defer([&](){std::free(his_msg_ptr);});
                     rlib::mpi_assert(MPI_Recv(his_msg_ptr, his_msg_size, MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
 
                     // clear buffer before apply_received_msg!
                     neighbor.hisShare_data.clear();
                     neighbor.hisShare_data.resize(shareSize);
                     apply_received_msg(shareSize, neighbor.hisShare_data, real_buffer, his_msg_ptr, his_msg_size);
+
+                    std::free(his_msg_ptr);
                 }
 
                 // free all buffers for MPI_Isend
