@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 
     MPI_Datatype PARTICLE;
     MPI_Type_contiguous(6, MPI_DOUBLE, &PARTICLE);
-    static_assert(sizeof(particle_t) == 6*sizeof(double));
+    static_assert(sizeof(particle_t) == 6*sizeof(double), "shit");
     MPI_Type_commit(&PARTICLE);
     //
     //  initialize and distribute the particles (that's fine to leave it
