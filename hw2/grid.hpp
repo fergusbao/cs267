@@ -173,6 +173,7 @@ namespace r267 {
             size_t global_x, global_y, rank;
             std::array<neighbor_t, 4> neighbors; // {left, right, up, down}
         };
+        constexpr int RLIB_MPI_TAG_NEIGHBOR_MSG = 2;
 
         static inline void move_and_reown(const int how_many_proc, const particle_gridded_buffer_t &buf, buffer_t &particles) {
             static const size_t buffer_global_size = std::sqrt(how_many_proc);
@@ -196,8 +197,8 @@ namespace r267 {
                     auto &par = particles[particle_offset];
                     ::move(par);
                     if(par.x < x_range_begin or par.x > x_range_end or par.y < y_range_begin or par.y > y_range_end) {
-                        const auto x = std::floor(par.x / cutoff);
-                        const auto y = std::floor(par.y / cutoff);
+                        const auto x = (int)std::floor(par.x / cutoff);
+                        const auto y = (int)std::floor(par.y / cutoff);
  
                         // report this particle to his new owner!
                         const auto his_owner_global_x = x / grid_xy_range;
@@ -212,16 +213,16 @@ namespace r267 {
                             .vy = par.vy,
                         });
                         auto &reqAndPar = *free_queue.begin();
-                        // offset as tag!
-                        rlib::mpi_assert(MPI_Isend(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset, MPI_COMM_WORLD, &reqAndPar.first));
+                        // offset+10 as tag!
+                        rlib::mpi_assert(MPI_Isend(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset+10, MPI_COMM_WORLD, &reqAndPar.first));
                     }
                 }
             }
 
             rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
            
-            // TODO: Report all particle that leaving my area to his new owner.
-            // TODO: receive all coming particles!
+            // : Report all particle that leaving my area to his new owner.
+            // : receive all coming particles!
             while(true) {
                 int have_msg_flag = 0;
                 MPI_Status stat;
@@ -229,12 +230,6 @@ namespace r267 {
                 if(!have_msg_flag)
                     break;
 
-                //int count;
-                //MPI_Get_count(&stat, MPI_CHAR, &count);
-                //if(count != sizeof(moved_particle_t)/sizeof(char)) {
-                //    printf("SHIT %d!=%d\n", count, sizeof(moved_particle_t)/sizeof(char));
-                //}
-                //static_assert(sizeof(moved_particle_t) == 40, "fucking");
                 moved_particle_t received_msg;
                 rlib::mpi_assert(MPI_Recv(&received_msg, sizeof(received_msg)/sizeof(char), MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
                 
@@ -421,6 +416,7 @@ namespace r267 {
                     if(*(size_t *)msg_ptr != msg_size)
                         throw std::runtime_error("apply received msg: msg size incorrect. expect " + std::to_string(*(size_t*)msg_ptr) + ", got " + std::to_string(msg_size));
                     
+                    
                     size_t *head_ptr = (size_t *)msg_ptr + 1;
                     neighbors_particle_t *body_ptr = (neighbors_particle_t *)(head_ptr + shareSize);
                     const size_t body_size = (msg_size - sizeof(size_t)*(shareSize+1)) / sizeof(particle_t);
@@ -450,7 +446,7 @@ namespace r267 {
 
                     // Async send! The receiver can probe the length
                     MPI_Request req;
-                    rlib::mpi_assert(MPI_Isend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, 0, MPI_COMM_WORLD, &req));
+                    rlib::mpi_assert(MPI_Isend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, RLIB_MPI_TAG_NEIGHBOR_MSG, MPI_COMM_WORLD, &req));
                     free_queue.push_back(std::make_pair(req, msg_ptr));
                     // Not necessary to wait for it! Because recv is sync.
                 }
@@ -462,7 +458,7 @@ namespace r267 {
                     void *his_msg_ptr; size_t his_msg_size;
                     //blocked recv
                     MPI_Status stat;
-                    rlib::mpi_assert(MPI_Probe(neighbor.rank, MPI_ANY_TAG, MPI_COMM_WORLD, &stat));
+                    rlib::mpi_assert(MPI_Probe(neighbor.rank, RLIB_MPI_TAG_NEIGHBOR_MSG, MPI_COMM_WORLD, &stat));
 
                     int count;
                     rlib::mpi_assert(MPI_Get_count(&stat, MPI_CHAR, &count));
@@ -470,7 +466,7 @@ namespace r267 {
 
                     his_msg_ptr = std::malloc(his_msg_size);
                     rlib_defer([&](){std::free(his_msg_ptr);});
-                    rlib::mpi_assert(MPI_Recv(his_msg_ptr, his_msg_size, MPI_CHAR, neighbor.rank, MPI_ANY_TAG, MPI_COMM_WORLD, &stat));
+                    rlib::mpi_assert(MPI_Recv(his_msg_ptr, his_msg_size, MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
 
                     // clear buffer before apply_received_msg!
                     neighbor.hisShare_data.clear();
