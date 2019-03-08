@@ -73,7 +73,8 @@ int main(int argc, char **argv) {
         init_particles(n, particles);
     
     //rlib::println("DEBUG> n_proc={}, rank={}, hello."_format(n_proc, rank));
-    MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD);
+    rlib::mpi_assert(MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD), "mpi_bcast");
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
     //
     //  simulate a number of time steps

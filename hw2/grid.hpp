@@ -13,6 +13,10 @@
 #include <list>
 #include <array>
 #include <cassert>
+#include <memory>
+#include <utility>
+
+#include "mpi_ass.hpp"
 
 #if defined(_OPENMP)
 #if _OPENMP < 201307
@@ -156,6 +160,7 @@ namespace r267 {
             int hisShare_begin_y; // grid_y
             bool hisShare_step_direction; // true for x, false for y //TODO: unnecessary!
             std::vector<grid_info_2> hisShare_data;
+            bool valid = false;
         };
         struct particle_gridded_buffer_t {
             std::vector<grid_info_2> myBuffer;
@@ -204,7 +209,8 @@ namespace r267 {
                     .myShare_step = grid_xy_range,
                     .hisShare_begin_x = -1,
                     .hisShare_begin_y = 0,
-                    .hisShare_step_direction = false
+                    .hisShare_step_direction = false,
+                    .valid = true
                 };
                 res.neighbors[0] = n;
             }
@@ -216,7 +222,8 @@ namespace r267 {
                     .myShare_step = grid_xy_range,
                     .hisShare_begin_x = (int)grid_xy_range,
                     .hisShare_begin_y = 0,
-                    .hisShare_step_direction = false
+                    .hisShare_step_direction = false,
+                    .valid = true
                 };
                 res.neighbors[1] = n;
             }
@@ -228,7 +235,8 @@ namespace r267 {
                     .myShare_step = 1,
                     .hisShare_begin_x = 0,
                     .hisShare_begin_y = -1,
-                    .hisShare_step_direction = true
+                    .hisShare_step_direction = true,
+                    .valid = true
                 };
                 res.neighbors[2] = n;
             }
@@ -240,7 +248,8 @@ namespace r267 {
                     .myShare_step = 1,
                     .hisShare_begin_x = 0,
                     .hisShare_begin_y = (int)grid_xy_range,
-                    .hisShare_step_direction = true
+                    .hisShare_step_direction = true,
+                    .valid = true
                 };
                 res.neighbors[3] = n;
             }
@@ -285,6 +294,59 @@ namespace r267 {
                 const auto *ptr_begin = working_neighbor.hisShare_data.data();
                 return ptr_begin + neighbor_offset_1 + neighbor_offset_2;
             }
+
+            static inline void mpi_exchange_shares(const particle_gridded_buffer_t &buf, const buffer_t &real_buffer, size_t shareSize) {
+                // send first, then recv.
+                // async send, sync recv.
+
+                // msg: [gridDataBeginIndex ...] + [grid0Data0, gri0Data1, grid2Data0, ...]
+                static const auto compose_msg = [](const auto shareSize, const grid_info_2 *pGridsBuf, const auto step, const buffer_t &real_buffer) -> auto {
+                    size_t particles_to_send_count = 0;
+                    for(auto cter = 0; cter < shareSize; ++cter) {
+                        const auto shift_index = cter * step;
+                        particles_to_send_count += pGridsBuf[shift_index].particles_by_offset.size();
+                    }
+
+                    const size_t head_length = shareSize * sizeof(size_t);
+                    const size_t body_length = particles_to_send_count * sizeof(particle_t);
+                    auto *msg = std::malloc(head_length + body_length);
+
+                    size_t *head_ptr = (size_t *)msg;
+                    particle_t *body_ptr = (particle_t *)(head_ptr + shareSize);
+
+                    auto *body_ptr_backup = body_ptr;
+                    auto *head_ptr_backup = head_ptr;
+
+                    for(auto cter = 0; cter < shareSize; ++cter) {
+                        const auto shift_index = cter * step;
+                        *head_ptr = body_ptr - body_ptr_backup;
+                        ++head_ptr;
+                        for(const auto &particle_offset : pGridsBuf[shift_index].particles_by_offset) {
+                            *body_ptr = real_buffer[particle_offset];
+                            ++body_ptr;
+                        }
+                    }
+                    assert(body_ptr - body_ptr_backup == particles_to_send_count); 
+                    assert(head_ptr - head_ptr_backup == shareSize); 
+
+                    return std::make_pair(msg, head_length+body_length);
+                }; // compose_msg end
+                static const auto apply_received_msg = [](const auto shareSize, std::vector<grid_info_2> &pReceiveBuf, buffer_t &real_buffer) -> void {
+
+                }
+
+                for(auto &neighbor : buf.neighbors) {
+                    if(not neighbor.valid)
+                        continue;
+                    const auto *myshare_begin_ptr = buf.myBuffer.data() + neighbor.myShare_begin_index;
+
+                    void *msg_ptr; size_t msg_size;
+                    std::tie(msg_ptr, msg_size) = compose_msg(shareSize, myshare_begin_ptr, neighbor.myShare_step);
+
+                    // TODO: Async send! The receiver can probe the length.
+                }
+
+            }
         }
 
         static inline void compute_forces(const int how_many_proc, const particle_gridded_buffer_t &buf, buffer_t &particles, double *dmin, double *davg, int *navg) {
@@ -292,11 +354,12 @@ namespace r267 {
                 particle.ax = particle.ay = 0;
             }
 
-            // TODO: communicate and fill buf.neighbors[i].hisShare_data
-            // should validate corresponding element in particles.
-
             static const size_t buffer_global_size = std::sqrt(how_many_proc);
             static const size_t grid_xy_range = std::ceil((float)grid_size / (float)buffer_global_size); 
+
+            // TODO: communicate and fill buf.neighbors[i].hisShare_data
+            // should validate corresponding element in particles.
+            impl::mpi_exchange_shares(buf, particles.data(), grid_xy_range);
 
             for(auto y = 0; y < grid_xy_range; ++y) {
                 if(grid_xy_range*buf.global_y + y >= grid_size)
