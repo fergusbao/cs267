@@ -21,12 +21,12 @@ all:	$(TARGETS)
 
 serial: 
 	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
-	$(CXX) -o $@ $(CFLAGS) serial.cpp common.cpp $(LIBS)
+	$(CXX) -o $@ $(CFLAGS) -DDISABLE_MPI serial.cpp common.cpp $(LIBS)
 autograder: autograder.o common.o
 	$(CXX) -o $@ $(CFLAGS) autograder.o common.o $(LIBS)
 openmp: 
 	@[ $(LAUNCH_FROM_BUILD_FISH) = f ] && echo '||||||| WARNING: YOU MUST ALWAYS USE build.sh OR build.fish TO BUILD MY PROJECT !!!' || echo -n ''
-	$(CXX) -o $@ $(CFLAGS) $(OPENMP) openmp.cpp common.cpp $(LIBS)
+	$(CXX) -o $@ $(CFLAGS) $(OPENMP) -DDISABLE_MPI openmp.cpp common.cpp $(LIBS)
 mpi:
 	$(MPICXX) -o $@ $(CFLAGS) $(MPILIBS) mpi.cpp common.cpp $(LIBS)
 

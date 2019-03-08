@@ -16,7 +16,9 @@
 #include <memory>
 #include <utility>
 
+#ifndef DISABLE_MPI
 #include "mpi_ass.hpp"
+#endif
 #include "scope_guard.hpp"
 
 #if defined(_OPENMP)
@@ -148,6 +150,7 @@ namespace r267 {
     } // end namespace omp
 #endif // defined _OPENMP
 
+#ifndef DISABLE_MPI
     namespace mpi {
         struct grid_info_2 {
             std::vector<size_t> particles_by_offset;
@@ -461,7 +464,8 @@ namespace r267 {
             // TODO: Report all particle that leaving my area to his new owner.
             // TODO: receive all comming particles!
         }
-    }
+    } // end namespace mpi
+#endif // defined DISABLE_MPI
 } // end namespace r267
 
 #endif
