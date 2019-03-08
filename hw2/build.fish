@@ -8,12 +8,12 @@ function build_target_pgo
 
     echo "Building target $target with PGO technic..."
 
-    env CXX=icpc APP="-prof-gen -prof-dir$prof_dir $app" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target
+    env CXX=icpc MPICXX=mpiicpc APP="-prof-gen -prof-dir$prof_dir $app" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target
     and rm -rf $prof_dir
     and mkdir $prof_dir
     and eval ./$target -n 5000
     and rm -f *.o ./$target
-        env CXX=icpc APP="-prof-use -prof-dir$prof_dir $app" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target
+        env CXX=icpc MPICXX=mpiicpc APP="-prof-use -prof-dir$prof_dir $app" OPENMP=-qopenmp LAUNCH_FROM_BUILD_FISH=t make $target
     and rm -rf $prof_dir
 
     return $status
