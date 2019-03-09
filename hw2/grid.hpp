@@ -15,8 +15,11 @@
 #include <cassert>
 #include <memory>
 #include <utility>
-#include <set>
-#include <unordered_set>
+
+#include <thread>
+#include <chrono>
+#include <algorithm>
+using namespace std::literals;
 
 #ifndef DISABLE_MPI
 #include "mpi_ass.hpp"
@@ -189,8 +192,39 @@ namespace r267 {
                 decltype(particle_t().vx) vx, vy;
             };
 
-            std::list<std::pair<MPI_Request, moved_particle_t>> free_queue; // Free these buffers after isend finishes.
 
+            // : Report all particle that leaving my area to his new owner.
+            // : receive all coming particles!
+            const auto recv_thread_func = [](buffer_t &particles, volatile bool &flagStopThread, const size_t debug_my_rank){
+                int debug_received_cter = 0;
+                while(not flagStopThread) {
+                    int have_msg_flag = 0;
+                    MPI_Status stat;
+                    rlib::mpi_assert(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &have_msg_flag, &stat));
+                    if(have_msg_flag) {
+                        //printf("%u: got a msg!! tag=%d from=%d\n", debug_my_rank, stat.MPI_TAG, stat.MPI_SOURCE);
+                        if(stat.MPI_TAG == RLIB_MPI_TAG_NEIGHBOR_MSG) // WARNING: just a workaround to avoid crash
+                            continue;
+
+                        moved_particle_t received_msg;
+                        rlib::mpi_assert(MPI_Recv(&received_msg, sizeof(received_msg)/sizeof(char), MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
+
+                        particles.at(received_msg.index).x = received_msg.x;
+                        particles.at(received_msg.index).y = received_msg.y;
+                        particles.at(received_msg.index).vx = received_msg.vx;
+                        particles.at(received_msg.index).vy = received_msg.vy;
+                        ++debug_received_cter;
+                        //printf("%u: got a par!!\n", debug_my_rank);
+                    }
+                }
+                //printf("%u: recv %d par in\n", debug_my_rank, debug_received_cter);
+            };
+ 
+            volatile bool flag_stop_recv_thread = false;
+            std::function<void()> _tmp = std::bind(recv_thread_func, particles, std::ref(flag_stop_recv_thread), buf.rank);
+            std::thread recv_thread(_tmp);
+
+            std::list<std::pair<MPI_Request, moved_particle_t>> free_queue; // Free these buffers after isend finishes.
             for(auto &grid : buf.myBuffer) {
                 for(auto particle_offset : grid.particles_by_offset) {
                     auto &par = particles[particle_offset];
@@ -202,7 +236,8 @@ namespace r267 {
                         // report this particle to his new owner!
                         const auto his_owner_global_x = x / grid_xy_range;
                         const auto his_owner_global_y = y / grid_xy_range;
-                        const auto his_owner_rank = his_owner_global_x * buffer_global_size + his_owner_global_y;
+                        const size_t his_owner_rank = his_owner_global_x * buffer_global_size + his_owner_global_y;
+                        //printf("SEND DEBUG< %u -> %u\n", buf.rank, his_owner_rank);
 
                         free_queue.emplace_front(MPI_Request(), moved_particle_t {
                             .index = particle_offset, 
@@ -213,36 +248,25 @@ namespace r267 {
                         });
                         auto &reqAndPar = *free_queue.begin();
                         // offset+10 as tag!
-                        rlib::mpi_assert(MPI_Isend(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset+10, MPI_COMM_WORLD, &reqAndPar.first));
+                        //rlib::mpi_assert(MPI_Issend(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset+10, MPI_COMM_WORLD, &reqAndPar.first));
+                        MPI_Status stat;
+                        rlib::mpi_assert(MPI_Send(&reqAndPar.second, sizeof(moved_particle_t)/sizeof(char), MPI_CHAR, his_owner_rank, particle_offset+10, MPI_COMM_WORLD));
                     }
                 }
             }
 
-            rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-           
-            // : Report all particle that leaving my area to his new owner.
-            // : receive all coming particles!
-            while(true) {
-                int have_msg_flag = 0;
-                MPI_Status stat;
-                rlib::mpi_assert(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &have_msg_flag, &stat));
-                if(!have_msg_flag)
-                    break;
 
-                moved_particle_t received_msg;
-                rlib::mpi_assert(MPI_Recv(&received_msg, sizeof(received_msg)/sizeof(char), MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
-                
-                particles[received_msg.index].x = received_msg.x;
-                particles[received_msg.index].y = received_msg.y;
-                particles[received_msg.index].vx = received_msg.vx;
-                particles[received_msg.index].vy = received_msg.vy;
-            }
+            //printf("debug- %u: Sent %d par out\n", buf.rank, free_queue.size());
 
-            // TODO: free the free_queue
+
             for(auto &ele : free_queue) {
-                rlib::mpi_assert(MPI_Wait(&ele.first, MPI_STATUS_IGNORE));
                 // on stack, no need to free. just return.
+                //rlib::mpi_assert(MPI_Wait(&ele.first, MPI_STATUS_IGNORE));
             }
+            rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+            //printf("debug- %u: Killing recv thread\n", buf.rank);
+            flag_stop_recv_thread = true;
+            recv_thread.join();
         }
 
         namespace impl {
@@ -253,6 +277,9 @@ namespace r267 {
                      y_range_end = cutoff * (grid_y_begin + grid_xy_range);
 
                 // memory bound. DO NOT apply omp please.
+                //auto debug_my_par_cter = 0;
+                //int debug_my_rank = 0;
+                //MPI_Comm_rank(MPI_COMM_WORLD, &debug_my_rank);
                 for(auto cter = 0; cter < particles.size(); ++cter) {
                     const auto &particle = particles[cter];
                     if(not(particle.x > x_range_begin and particle.y > y_range_begin and particle.x < x_range_end and particle.y < y_range_end))
@@ -261,7 +288,9 @@ namespace r267 {
                     const auto y = std::floor(particle.y / cutoff) - grid_y_begin;
                     auto &grid = grids.at(x*grid_xy_range + y);
                     grid.particles_by_offset.emplace_back(cter);
+                    //++debug_my_par_cter;
                 }
+                //printf("%d: My Particle: %d\n", debug_my_rank, debug_my_par_cter);
             }
         }
 
@@ -434,6 +463,7 @@ namespace r267 {
                 }; // apply_recvmsg_end
 
                 std::list<std::pair<MPI_Request, void *>> free_queue; // Free these buffers after isend finishes.
+                //printf("debug: %u: I have %u neighbors.\n", buf.rank, std::count_if(buf.neighbors.begin(), buf.neighbors.end(), [](auto &n){return n.valid;}));
                 for(auto &neighbor : buf.neighbors) {
                     if(not neighbor.valid)
                         continue;
@@ -448,6 +478,7 @@ namespace r267 {
                     rlib::mpi_assert(MPI_Isend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, RLIB_MPI_TAG_NEIGHBOR_MSG, MPI_COMM_WORLD, &req));
                     free_queue.push_back(std::make_pair(req, msg_ptr));
                     // Not necessary to wait for it! Because recv is sync.
+                    //printf("debug: %u send to neighbor %u\n", buf.rank, neighbor.rank);
                 }
 
                 for(auto &neighbor : buf.neighbors) {
@@ -470,6 +501,7 @@ namespace r267 {
                     neighbor.hisShare_data.clear();
                     neighbor.hisShare_data.resize(shareSize);
                     apply_received_msg(shareSize, neighbor.hisShare_data, real_buffer, his_msg_ptr, his_msg_size);
+                    //printf("debug: %u recv from neighbor %u\n", buf.rank, neighbor.rank);
 
                     std::free(his_msg_ptr);
                 }

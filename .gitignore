@@ -19,3 +19,4 @@ hw2/hackaday_hw2
 hw2/mpi
 *.log
 .vscode
+*.tar.gz

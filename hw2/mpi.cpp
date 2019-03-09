@@ -96,11 +96,15 @@ int main(int argc, char **argv) {
         dmin = 1.0;
         davg = 0.0;
 
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
         auto myBuffer = r267::mpi::init_my_buffer(rank, n_proc, real_buffer);
 
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
         r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
         r267::mpi::move_and_reown(n_proc, myBuffer, real_buffer);
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
         //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
