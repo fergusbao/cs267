@@ -204,7 +204,10 @@ namespace r267 {
                     if(have_msg_flag) {
                         //printf("%u: got a msg!! tag=%d from=%d\n", debug_my_rank, stat.MPI_TAG, stat.MPI_SOURCE);
                         if(stat.MPI_TAG == RLIB_MPI_TAG_NEIGHBOR_MSG) // WARNING: just a workaround to avoid crash
+                        {
+                            printf("SHIT! neighbor msg leak detected. ignoring the msg.\n");
                             continue;
+                        }
 
                         moved_particle_t received_msg;
                         rlib::mpi_assert(MPI_Recv(&received_msg, sizeof(received_msg)/sizeof(char), MPI_CHAR, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
@@ -475,7 +478,7 @@ namespace r267 {
 
                     // Async send! The receiver can probe the length
                     MPI_Request req;
-                    rlib::mpi_assert(MPI_Isend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, RLIB_MPI_TAG_NEIGHBOR_MSG, MPI_COMM_WORLD, &req));
+                    rlib::mpi_assert(MPI_Issend(msg_ptr, msg_size, MPI_CHAR, neighbor.rank, RLIB_MPI_TAG_NEIGHBOR_MSG, MPI_COMM_WORLD, &req));
                     free_queue.push_back(std::make_pair(req, msg_ptr));
                     // Not necessary to wait for it! Because recv is sync.
                     //printf("debug: %u send to neighbor %u\n", buf.rank, neighbor.rank);
