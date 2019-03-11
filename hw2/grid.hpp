@@ -230,7 +230,7 @@ namespace r267 {
             std::list<std::pair<MPI_Request, moved_particle_t>> free_queue; // Free these buffers after isend finishes.
             for(auto &grid : buf.myBuffer) {
                 for(auto particle_offset : grid.particles_by_offset) {
-                    auto &par = particles[particle_offset];
+                    auto &par = particles.at(particle_offset);
                     ::move(par);
                     if(par.x < x_range_begin or par.x > x_range_end or par.y < y_range_begin or par.y > y_range_end) {
                         const auto x = (int)std::floor(par.x / cutoff);
@@ -284,7 +284,7 @@ namespace r267 {
                 //int debug_my_rank = 0;
                 //MPI_Comm_rank(MPI_COMM_WORLD, &debug_my_rank);
                 for(auto cter = 0; cter < particles.size(); ++cter) {
-                    const auto &particle = particles[cter];
+                    const auto &particle = particles.at(cter);
                     if(not(particle.x > x_range_begin and particle.y > y_range_begin and particle.x < x_range_end and particle.y < y_range_end))
                         continue;
                     const auto x = std::floor(particle.x / cutoff) - grid_x_begin;
@@ -390,7 +390,7 @@ namespace r267 {
                     return ptr_begin + (x*grid_xy_range + y);
                 }
 
-                const neighbor_t &working_neighbor = buf.neighbors[(int)dir];
+                const neighbor_t &working_neighbor = buf.neighbors.at((int)dir);
                 
                 auto neighbor_offset_1 = x - working_neighbor.hisShare_begin_x;
                 auto neighbor_offset_2 = y - working_neighbor.hisShare_begin_y;
@@ -543,7 +543,7 @@ namespace r267 {
                             if(ptr_neighbor_grid_info != nullptr) { \
                             for(auto &particle_offset : working_grid.particles_by_offset) { \
                                 for(const auto &neighbor_particle_offset : ptr_neighbor_grid_info->particles_by_offset) { \
-                                    apply_force(particles[particle_offset], particles[neighbor_particle_offset], dmin, davg, navg); \
+                                    apply_force(particles.at(particle_offset), particles.at(neighbor_particle_offset), dmin, davg, navg); \
                                 } \
                             } \
                         } \
