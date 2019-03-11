@@ -1,46 +1,56 @@
-#include "common.h"
-#include <assert.h>
+// mpicxx -o mpi -O3 -std=c++14 -g -fsanitize=address -fno-omit-frame-pointer -O0  mpi.cpp
+
 #include <mpi.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include "grid.hpp"
-#include <cmath>
+
+#include <thread>
+namespace rlib {
+    void mpi_assert(int b) {
+        if(b != MPI_SUCCESS)
+            throw std::runtime_error("fuck");
+    }
+}
+
+static inline void move_and_reown(const int n_proc, const int rank) {
+    const auto recv_thread_func = [](volatile bool &flagStopThread) {
+        while(not flagStopThread) {
+            int have_msg_flag = 0;
+            MPI_Status stat;
+            rlib::mpi_assert(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &have_msg_flag, &stat));
+            if(have_msg_flag) {
+                double received_msg;
+                rlib::mpi_assert(MPI_Recv(&received_msg, 1, MPI_DOUBLE, stat.MPI_SOURCE, stat.MPI_TAG, MPI_COMM_WORLD, &stat));
+            }
+        }
+    };
+
+    volatile bool flag_stop_recv_thread = false;
+    std::thread recv_thread(recv_thread_func, std::ref(flag_stop_recv_thread));
+
+    const int new_rank = (rank + 1) % n_proc;
+
+    double packet = 1.1;
+    MPI_Status stat;
+    rlib::mpi_assert(MPI_Send(&packet, 1, MPI_DOUBLE, new_rank, 7, MPI_COMM_WORLD));
 
 
-//
-//  benchmarking program
-//
+    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+    flag_stop_recv_thread = true;
+    recv_thread.join();
+    printf("%d: recv thread exited.\n", rank);
+}
+
 int main(int argc, char **argv) {
-    int n = 1000;
-
     int n_proc, rank;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    {
-        int magic = std::sqrt(n_proc);
-        if(magic * magic != n_proc)
-            throw std::invalid_argument("n_proc must be someInt^2. Or it will be automatically cut to an available number.");
-    }
-
-
     printf("nproc=%d, rank=%d\n", n_proc, rank);
-    //rlib::mpi_assert(MPI_Bcast(real_buffer.data(), n, PARTICLE, 0, MPI_COMM_WORLD), "mpi_bcast");
-    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
-    //for (int step = 0; step < NSTEPS; step++) {
-
-        //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-        //    //auto myBuffer = r267::mpi::init_my_buffer(rank, n_proc, real_buffer);
-
-        //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-        //    //r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
-        //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-
-            r267::mpi::move_and_reown(n_proc, rank);
-        //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-
+    //for (int step = 0; step < 1000; step++) {
+        move_and_reown(n_proc, rank);
+        printf("%d: Loop success\n", rank);
     //}
 
     MPI_Finalize();

@@ -41,8 +41,9 @@ int main(int argc, char **argv) {
     //
     //  set up MPI
     //
-    int n_proc, rank;
-    MPI_Init(&argc, &argv);
+    int n_proc, rank, provided;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+    if(provided != MPI_THREAD_MULTIPLE) throw std::runtime_error("shit");
     MPI_Comm_size(MPI_COMM_WORLD, &n_proc);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
