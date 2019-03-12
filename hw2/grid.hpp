@@ -17,9 +17,6 @@
 #include <utility>
 
 #include <thread>
-#include <chrono>
-#include <algorithm>
-using namespace std::literals;
 
 #ifndef DISABLE_MPI
 #include "mpi_ass.hpp"
