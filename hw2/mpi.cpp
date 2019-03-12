@@ -97,41 +97,17 @@ int main(int argc, char **argv) {
         dmin = 1.0;
         davg = 0.0;
 
-    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+        //printf("debug: %d reached init.\n", rank);
         auto myBuffer = r267::mpi::init_my_buffer(rank, n_proc, real_buffer);
 
-    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+        //printf("debug: %d reached compute force.\n", rank);
         r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
-    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
+        //printf("debug: %d reached move.\n", rank);
+        MPI_Barrier(MPI_COMM_WORLD);
         r267::mpi::move_and_reown(n_proc, myBuffer, real_buffer);
-    rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
 
         //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
-
-        ////
-        ////  collect all global data locally (not good idea to do)
-        ////
-        //MPI_Allgatherv(local, nlocal, PARTICLE, particles, partition_sizes,
-        //               partition_offsets, PARTICLE, MPI_COMM_WORLD);
-
-        ////
-        ////  save current step if necessary (slightly different semantics than in
-        ////  other codes)
-        ////
-        //if (find_option(argc, argv, "-no") == -1)
-        //    if (fsave && (step % SAVEFREQ) == 0)
-        //        save(fsave, n, particles);
-
-        ////
-        ////  compute all forces
-        ////
-        //for (int i = 0; i < nlocal; i++) {
-        //    local[i].ax = local[i].ay = 0;
-        //    for (int j = 0; j < n; j++)
-        //        apply_force(local[i], particles[j], &dmin, &davg, &navg);
-        //}
-
         if (find_option(argc, argv, "-no") == -1) {
 
             MPI_Reduce(&davg, &rdavg, 1, MPI_DOUBLE, MPI_SUM, 0,

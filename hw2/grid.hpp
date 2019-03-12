@@ -79,7 +79,6 @@ namespace r267 {
                     auto &grid = grids[XY(x, y)];
                     // do_apply_force
                     // too lazy to write a new function.
-                    //rlib::println("debug: particle in grid =", grid.particles.size());
                     #define FUCK_NEIGHBOR(_x, _y) \
                         if(_x >= 0 and _y >= 0 and _x < grid_size and _y < grid_size) { \
                             for(const auto &neighbor : grids[XY(_x, _y)].particles) {   \
