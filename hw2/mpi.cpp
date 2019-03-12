@@ -104,17 +104,16 @@ int main(int argc, char **argv) {
         r267::mpi::compute_forces(n_proc, myBuffer, real_buffer, &dmin, &davg, &navg);
 
         //printf("debug: %d reached move.\n", rank);
-        MPI_Barrier(MPI_COMM_WORLD);
+        //MPI_Barrier(MPI_COMM_WORLD);
         r267::mpi::move_and_reown(n_proc, myBuffer, real_buffer);
 
         //rlib::mpi_assert(MPI_Barrier(MPI_COMM_WORLD));
+
         if (find_option(argc, argv, "-no") == -1) {
 
-            MPI_Reduce(&davg, &rdavg, 1, MPI_DOUBLE, MPI_SUM, 0,
-                       MPI_COMM_WORLD);
+            MPI_Reduce(&davg, &rdavg, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Reduce(&navg, &rnavg, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-            MPI_Reduce(&dmin, &rdmin, 1, MPI_DOUBLE, MPI_MIN, 0,
-                       MPI_COMM_WORLD);
+            MPI_Reduce(&dmin, &rdmin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
 
             if (rank == 0) {
                 //
@@ -128,12 +127,6 @@ int main(int argc, char **argv) {
                     absmin = rdmin;
             }
         }
-
-        ////
-        ////  move particles
-        ////
-        //for (int i = 0; i < nlocal; i++)
-        //    move(local[i]);
     }
     simulation_time = read_timer() - simulation_time;
 

@@ -198,10 +198,9 @@ namespace r267 {
                     MPI_Status stat;
                     rlib::mpi_assert(MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &have_msg_flag, &stat));
                     if(have_msg_flag) {
-                        //printf("%u: got a msg!! tag=%d from=%d\n", debug_my_rank, stat.MPI_TAG, stat.MPI_SOURCE);
                         if(stat.MPI_TAG == RLIB_MPI_TAG_NEIGHBOR_MSG) // WARNING: just a workaround to avoid crash
                         {
-                            printf("SHIT! neighbor msg leak detected. ignoring the msg.\n");
+                            //printf("SHIT! neighbor msg leak detected. ignoring the msg.\n");
                             continue;
                         }
 
@@ -380,8 +379,8 @@ namespace r267 {
                 if(dir == direction_t::IN) {
                     // One-line version:
                     // return &buf.myBuffer[x*grid_xy_range+y];
-                    assert(x*grid_xy_range+y < buf.myBuffer.size());
-                    assert(x*grid_xy_range+y >= 0);
+                    //assert(x*grid_xy_range+y < buf.myBuffer.size());
+                    //assert(x*grid_xy_range+y >= 0);
                     const auto *ptr_begin = buf.myBuffer.data();
                     return ptr_begin + (x*grid_xy_range + y);
                 }
