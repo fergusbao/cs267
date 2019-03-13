@@ -45,8 +45,9 @@ int main(int argc, char **argv) {
   std::printf("RDEBUG> grid_size = %d\n", sx);
   //std::vector<int> dict[sx][sy];
   using dict_element_type = std::vector<int>;
-  // BAD PRACTICE! You should represent ndArray with only 1 vector.
-  std::vector<std::vector<dict_element_type>> dict(sx, std::vector<dict_element_type>(sy));
+  auto _dict_buf_ptr = std::make_unique<dict_element_type[]>(sx*sy);
+
+#define RLIB_MACRO_ACCESS_2D_DICT(_x, _y) (_dict_buf_ptr[(_x)*sx+(_y)])
 
   //
   //  simulate a number of time steps
@@ -62,72 +63,74 @@ int main(int argc, char **argv) {
     //
     for (int i = 0; i < sx; i++) {
       for (int j = 0; j < sy; j++) {
-        dict[i][j].clear();
+        RLIB_MACRO_ACCESS_2D_DICT(i, j).clear();
       }
     }
 
     for (int i = 0; i < n; i++) {
       int a = floor(particles[i].x / cutoff);
       int b = floor(particles[i].y / cutoff);
-      dict[a][b].push_back(i);
+      RLIB_MACRO_ACCESS_2D_DICT(a, b).push_back(i);
     }
     //
     //  compute forces
     //
     for (int i = 0; i < n; i++) {
-      int a = floor(particles[i].x / cutoff);
-      int b = floor(particles[i].y / cutoff);
+      auto &particle = particles[i];
 
-      particles[i].ax = particles[i].ay = 0;
+      int a = floor(particle.x / cutoff);
+      int b = floor(particle.y / cutoff);
 
-      for (int j = 0; j < dict[a][b].size(); j++) {
-        apply_force(particles[i], particles[dict[a][b][j]], &dmin, &davg,
+      particle.ax = particle.ay = 0;
+
+      for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b).size(); j++) {
+        apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b)[j]], &dmin, &davg,
                     &navg);
       }
       if (b > 0) {
-        for (int j = 0; j < dict[a][b - 1].size(); j++) {
-          apply_force(particles[i], particles[dict[a][b - 1][j]], &dmin, &davg,
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b - 1).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b - 1)[j]], &dmin, &davg,
                       &navg);
         }
       }
       if (b < sy - 1) {
-        for (int j = 0; j < dict[a][b + 1].size(); j++) {
-          apply_force(particles[i], particles[dict[a][b + 1][j]], &dmin, &davg,
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b + 1).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b + 1)[j]], &dmin, &davg,
                       &navg);
         }
       }
       if (a > 0) {
-        for (int j = 0; j < dict[a - 1][b].size(); j++) {
-          apply_force(particles[i], particles[dict[a - 1][b][j]], &dmin, &davg,
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b)[j]], &dmin, &davg,
                       &navg);
         }
         if (b > 0) {
-          for (int j = 0; j < dict[a - 1][b - 1].size(); j++) {
-            apply_force(particles[i], particles[dict[a - 1][b - 1][j]], &dmin,
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1)[j]], &dmin,
                         &davg, &navg);
           }
         }
         if (b < sy - 1) {
-          for (int j = 0; j < dict[a - 1][b + 1].size(); j++) {
-            apply_force(particles[i], particles[dict[a - 1][b + 1][j]], &dmin,
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1)[j]], &dmin,
                         &davg, &navg);
           }
         }
       }
       if (a < sx - 1) {
-        for (int j = 0; j < dict[a + 1][b].size(); j++) {
-          apply_force(particles[i], particles[dict[a + 1][b][j]], &dmin, &davg,
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b)[j]], &dmin, &davg,
                       &navg);
         }
         if (b > 0) {
-          for (int j = 0; j < dict[a + 1][b - 1].size(); j++) {
-            apply_force(particles[i], particles[dict[a + 1][b - 1][j]], &dmin,
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1)[j]], &dmin,
                         &davg, &navg);
           }
         }
         if (b < sy - 1) {
-          for (int j = 0; j < dict[a + 1][b + 1].size(); j++) {
-            apply_force(particles[i], particles[dict[a + 1][b + 1][j]], &dmin,
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1)[j]], &dmin,
                         &davg, &navg);
           }
         }
