@@ -151,7 +151,10 @@ int main(int argc, char **argv) {
     //
     //  move particles
     //
-    r267::move_helper<<<1, n>>>(particles, size);
+    const auto buffer_size = n;
+    const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
+    const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
+    r267::move_helper<<<blocks, threads>>>(particles, size, buffer_size);
     //for (int i = 0; i < n; i++)
     //  ::move(particles[i]);
 

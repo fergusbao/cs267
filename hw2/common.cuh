@@ -5,11 +5,20 @@
 #include <cuda.h>
 #include <stdexcept>
 
+#if __cplusplus > 201103L
+#define RLIB_CONSTEXPR constexpr
+#else
+#define RLIB_CONSTEXPR const
+#endif
+
 //
 //  saving parameters
 //
-const int NSTEPS = 1000;
-const int SAVEFREQ = 10;
+RLIB_CONSTEXPR int NSTEPS = 1000;
+RLIB_CONSTEXPR int SAVEFREQ = 10;
+
+// Recolic: I assume your GPU support 1024 thread per block. If not, edit this constant.
+RLIB_CONSTEXPR int CUDA_MAX_THREAD_PER_BLOCK = 1024;
 
 //
 // particle data structure
@@ -86,9 +95,10 @@ namespace rlib {
 }
 
 namespace r267 {
-    __global__ inline void move_helper(particle_t *particles, double size) {
-        int index = threadIdx.x;
-        ::move(particles + index, size);
+    __global__ inline void move_helper(particle_t *particles, double size, size_t buffer_size) {
+        int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
+        if(index < buffer_size)
+            ::move(particles + index, size);
     }
 }
 
