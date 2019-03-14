@@ -1,4 +1,4 @@
-#include "common.h"
+#include "common.cuh"
 #include <cassert>
 #include <iostream>
 #include <cmath>
@@ -8,6 +8,12 @@
 
 #include <utility>
 #include <memory>
+
+// RECOLIC: In cuda, we should take special care to compile extern functions.
+//  To make things easy, I'm willing to place all of them in one source.
+//  THIS IS NOT AN ERROR!!
+#include "common.cu"
+// NOTE END
 
 //
 //  benchmarking program
@@ -34,7 +40,10 @@ int main(int argc, char **argv) {
   FILE *fsave = savename ? fopen(savename, "w") : NULL;
   FILE *fsum = sumname ? fopen(sumname, "a") : NULL;
 
-  particle_t *particles = (particle_t *)malloc(n * sizeof(particle_t));
+  particle_t *_cuda_managed_particles = nullptr;
+  rlib::cuda_assert((cudaError_t)cudaMallocManaged(&_cuda_managed_particles, n * sizeof(particle_t)));
+  particle_t *particles = new(_cuda_managed_particles) particle_t[n]();
+
   set_size(n);
   init_particles(n, particles);
   double density = 0.0005;
@@ -140,8 +149,9 @@ int main(int argc, char **argv) {
     //
     //  move particles
     //
-    for (int i = 0; i < n; i++)
-      ::move(particles[i]);
+    r267::move_helper<<<1, n>>>(particles, size);
+    //for (int i = 0; i < n; i++)
+    //  ::move(particles[i]);
 
     if (find_option(argc, argv, "-no") == -1) {
       //
@@ -199,7 +209,7 @@ int main(int argc, char **argv) {
   //
   if (fsum)
     fclose(fsum);
-  free(particles);
+  rlib::cuda_assert(cudaFree(_cuda_managed_particles));
   if (fsave)
     fclose(fsave);
 
