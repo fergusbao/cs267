@@ -9,11 +9,98 @@
 #include <utility>
 #include <memory>
 
+#include "appendable_array.hpp"
+
 // RECOLIC: In cuda, we should take special care to compile extern functions.
 //  To make things easy, I'm willing to place all of them in one source.
 //  THIS IS NOT AN ERROR!!
 #include "common.cu"
 // NOTE END
+
+
+using dict_element_type = rlib::appendable_array<int>; // Fake vector.
+
+namespace r267 {
+    __global__ void move_helper(particle_t * __restrict__  particles, double size, size_t buffer_size) {
+        int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
+        if(index < buffer_size)
+            ::move(particles + index, size);
+    }
+
+    __global__ void apply_force_helper(particle_t * __restrict__  particles, size_t buffer_size) {
+      __device__ int navg = 0;
+      __device__ double davg = 0, dmin = 1.0;
+
+    }
+
+    __device__ void apply_force_single_thread(particle_t * __restrict__ particles, size_t my_index, 
+        dict_element_type *_dict_buf_ptr, double * __restrict__  dmin, double * __restrict__ davg, int * __restrict__  navg) {
+      auto i = my_index;
+      auto &particle = particles[i];
+
+      int a = floor(particle.x / cutoff);
+      int b = floor(particle.y / cutoff);
+
+      particle.ax = particle.ay = 0;
+
+#define RLIB_MACRO_ACCESS_2D_DICT(_x, _y) (_dict_buf_ptr[(_x)*sx+(_y)])
+
+      for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b).size(); j++) {
+        apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b)[j]], dmin, davg,
+                    navg);
+      }
+      if (b > 0) {
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b - 1).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b - 1)[j]], dmin, davg,
+                      navg);
+        }
+      }
+      if (b < sy - 1) {
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b + 1).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b + 1)[j]], dmin, davg,
+                      navg);
+        }
+      }
+      if (a > 0) {
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b)[j]], dmin, davg,
+                      navg);
+        }
+        if (b > 0) {
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1)[j]], dmin,
+                        davg, navg);
+          }
+        }
+        if (b < sy - 1) {
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1)[j]], dmin,
+                        davg, navg);
+          }
+        }
+      }
+      if (a < sx - 1) {
+        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b).size(); j++) {
+          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b)[j]], dmin, davg,
+                      navg);
+        }
+        if (b > 0) {
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1)[j]], dmin,
+                        davg, navg);
+          }
+        }
+        if (b < sy - 1) {
+          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1).size(); j++) {
+            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1)[j]], dmin,
+                        davg, navg);
+          }
+        }
+      }
+    }
+}
+
+
 
 //
 //  benchmarking program
@@ -53,12 +140,11 @@ int main(int argc, char **argv) {
   int sy = sx;
   std::printf("RDEBUG> grid_size = %d\n", sx);
   //std::vector<int> dict[sx][sy];
-  using dict_element_type = std::vector<int>;
+  //using dict_element_type = std::vector<int>;
   // RECOLIC: FUCKING BRIDGE IS USING GCC 4.8.5 which doesn't support c++14
   //auto _dict_buf_ptr = std::make_unique<dict_element_type[]>(sx*sy);
   auto _dict_buf_ptr = std::unique_ptr<dict_element_type[]>(new dict_element_type[sx*sy]());
 
-#define RLIB_MACRO_ACCESS_2D_DICT(_x, _y) (_dict_buf_ptr[(_x)*sx+(_y)])
 
   //
   //  simulate a number of time steps
@@ -87,65 +173,7 @@ int main(int argc, char **argv) {
     //  compute forces
     //
     for (int i = 0; i < n; i++) {
-      auto &particle = particles[i];
 
-      int a = floor(particle.x / cutoff);
-      int b = floor(particle.y / cutoff);
-
-      particle.ax = particle.ay = 0;
-
-      for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b).size(); j++) {
-        apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b)[j]], &dmin, &davg,
-                    &navg);
-      }
-      if (b > 0) {
-        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b - 1).size(); j++) {
-          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b - 1)[j]], &dmin, &davg,
-                      &navg);
-        }
-      }
-      if (b < sy - 1) {
-        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a, b + 1).size(); j++) {
-          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a, b + 1)[j]], &dmin, &davg,
-                      &navg);
-        }
-      }
-      if (a > 0) {
-        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b).size(); j++) {
-          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b)[j]], &dmin, &davg,
-                      &navg);
-        }
-        if (b > 0) {
-          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1).size(); j++) {
-            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b - 1)[j]], &dmin,
-                        &davg, &navg);
-          }
-        }
-        if (b < sy - 1) {
-          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1).size(); j++) {
-            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a - 1, b + 1)[j]], &dmin,
-                        &davg, &navg);
-          }
-        }
-      }
-      if (a < sx - 1) {
-        for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b).size(); j++) {
-          apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b)[j]], &dmin, &davg,
-                      &navg);
-        }
-        if (b > 0) {
-          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1).size(); j++) {
-            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b - 1)[j]], &dmin,
-                        &davg, &navg);
-          }
-        }
-        if (b < sy - 1) {
-          for (int j = 0; j < RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1).size(); j++) {
-            apply_force(particle, particles[RLIB_MACRO_ACCESS_2D_DICT(a + 1, b + 1)[j]], &dmin,
-                        &davg, &navg);
-          }
-        }
-      }
     }
 
     //

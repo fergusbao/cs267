@@ -5,6 +5,8 @@
 #include <cuda.h>
 #include <stdexcept>
 
+#include "macro.hpp"
+
 #if __cplusplus > 201103L
 #define RLIB_CONSTEXPR constexpr
 #else
@@ -42,9 +44,8 @@ double read_timer();
 //
 void set_size(int n);
 void init_particles(int n, particle_t *p);
-void apply_force(particle_t &particle, const particle_t &neighbor, double *dmin,
-                 double *davg, int *navg);
-__device__ void move(particle_t *, double size);
+__device__ void apply_force(particle_t &particle, const particle_t &neighbor, double * __restrict__  dmin, double * __restrict__ davg, int * __restrict__  navg);
+__device__ void move(particle_t * __restrict__ , double size);
 
 //
 //  I/O routines
@@ -94,12 +95,12 @@ namespace rlib {
     //}
 }
 
-namespace r267 {
-    __global__ inline void move_helper(particle_t *particles, double size, size_t buffer_size) {
-        int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
-        if(index < buffer_size)
-            ::move(particles + index, size);
-    }
-}
+#define RLIB_IMPL_CUDA_FOR(counter_var, counter_var_begin, counter_var_end) \
+    do { \
+        auto _rlib_impl_range_size = counter_var_end - counter_var_begin; \
+\
+    } while(false)
+
+#define RLIB_CUDA_FOR(counter_var_name, counter_var_begin, counter_var_end) RLIB_IMPL_CUDA_FOR(counter_var_name, RLIB_MACRO_DECAY(counter_var_begin), RLIB_MACRO_DECAY(counter_var_end))
 
 #endif

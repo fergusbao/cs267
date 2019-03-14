@@ -70,7 +70,7 @@ void init_particles(int n, particle_t *p) {
 //
 //  interact two particles
 //
-void apply_force(particle_t &particle, const particle_t &neighbor, double *dmin, double *davg, int *navg) {
+__device__ void apply_force(particle_t &particle, const particle_t &neighbor, double * __restrict__  dmin, double * __restrict__  davg, int * __restrict__  navg) {
     if(&particle == &neighbor) return;
     double dx = neighbor.x - particle.x;
     double dy = neighbor.y - particle.y; // SLOW memory access! You must do some prefetch.
@@ -96,7 +96,7 @@ void apply_force(particle_t &particle, const particle_t &neighbor, double *dmin,
 //
 //  integrate the ODE
 //
-__device__ void move(particle_t *pp, double size) {
+__device__ void move(particle_t * __restrict__  pp, double size) {
     particle_t &p = *pp;
     //
     //  slightly simplified Velocity Verlet integration
