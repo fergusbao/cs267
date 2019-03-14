@@ -54,7 +54,9 @@ int main(int argc, char **argv) {
   std::printf("RDEBUG> grid_size = %d\n", sx);
   //std::vector<int> dict[sx][sy];
   using dict_element_type = std::vector<int>;
-  auto _dict_buf_ptr = std::make_unique<dict_element_type[]>(sx*sy);
+  // RECOLIC: FUCKING BRIDGE IS USING GCC 4.8.5 which doesn't support c++14
+  //auto _dict_buf_ptr = std::make_unique<dict_element_type[]>(sx*sy);
+  auto _dict_buf_ptr = std::unique_ptr<dict_element_type[]>(new dict_element_type[sx*sy]());
 
 #define RLIB_MACRO_ACCESS_2D_DICT(_x, _y) (_dict_buf_ptr[(_x)*sx+(_y)])
 

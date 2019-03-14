@@ -51,7 +51,7 @@ int read_int(int argc, char **argv, const char *option, int default_value);
 char *read_string(int argc, char **argv, const char *option,
                   char *default_value);
 
-template <typename T> static constexpr auto sq(T val) {return val * val;}
+// template <typename T> static constexpr auto sq(T val) {return val * val;}
 
 ///////////////////////// var in common.cpp
 //
