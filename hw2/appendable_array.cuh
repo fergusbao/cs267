@@ -25,7 +25,7 @@ namespace rlib {
             // NOT THREAD SAFE!
             if(m_size >= cap) {
                 cap *= 2;
-                ++cap;
+                cap += 3;
                 apply_new_cap();
             }
 
@@ -36,7 +36,7 @@ namespace rlib {
             // NOT THREAD SAFE!
             if(m_size >= cap) {
                 cap *= 2;
-                ++cap;
+                cap += 3;
                 apply_new_cap();
             }
 
@@ -74,8 +74,9 @@ namespace rlib {
         }
 
         ~appendable_stdlayout_array() {
-            if(mem != nullptr)
-                rlib::cuda_assert(cudaFree(mem));
+            //if(mem != nullptr)
+            //    rlib::cuda_assert(cudaFree(mem));
+            // Never free memory to make program faster.
         }
 
     private:

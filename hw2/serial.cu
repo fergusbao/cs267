@@ -20,6 +20,7 @@
 
 using dict_element_type = rlib::appendable_stdlayout_array<int>; // Fake vector.
 
+
 namespace r267 {
   __global__ void move_helper(particle_t * __restrict__  particles, double size, size_t buffer_size) {
     int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
@@ -97,27 +98,30 @@ namespace r267 {
   __global__ void apply_force_helper(particle_t * __restrict__  particles, size_t buffer_size,
       dict_element_type * __restrict__ _dict_buf_ptr, int grid_size, 
       double * __restrict__ _dmin, double * __restrict__ _davg, int * __restrict__ _navg) {
-    int navg;
-    double dmin, davg;
+    int navg = 0;
+    double dmin = 1.0, davg = 0;
     int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
     if(index < buffer_size) {
       apply_force_single_thread(particles, index, _dict_buf_ptr, grid_size, &dmin, &davg, &navg);
+      fatomicMin(_dmin, dmin);
+      atomicAdd(_davg, davg);
+      atomicAdd(_navg, navg);
     }
-    fatomicMin(_dmin, dmin);
-    atomicAdd((double *)_davg, davg);
-    atomicAdd(_navg, navg);
+    // else return
   }
 }
 
-
+struct _r267_stats {
+  int navg;
+  double davg, dmin;
+};
 
 //
 //  benchmarking program
 //
 int main(int argc, char **argv) {
-  int navg, nabsavg = 0;
-  double davg, dmin, absmin = 1.0, absavg = 0.0;
-
+  int nabsavg = 0;
+  double absmin = 1.0, absavg = 0.0;
   if (find_option(argc, argv, "-h") >= 0) {
     printf("Options:\n");
     printf("-h to see this help\n");
@@ -136,8 +140,11 @@ int main(int argc, char **argv) {
   FILE *fsave = savename ? fopen(savename, "w") : NULL;
   FILE *fsum = sumname ? fopen(sumname, "a") : NULL;
 
+  _r267_stats *r267_stats = nullptr;
+  rlib::cuda_assert(cudaMallocManaged(&r267_stats, sizeof(_r267_stats)));
+
   particle_t *_cuda_managed_particles = nullptr;
-  rlib::cuda_assert((cudaError_t)cudaMallocManaged(&_cuda_managed_particles, n * sizeof(particle_t)));
+  rlib::cuda_assert(cudaMallocManaged(&_cuda_managed_particles, n * sizeof(particle_t)));
   particle_t *particles = new(_cuda_managed_particles) particle_t[n]();
 
   set_size(n);
@@ -160,9 +167,9 @@ int main(int argc, char **argv) {
   double simulation_time = read_timer();
 
   for (int step = 0; step < NSTEPS; step++) {
-    navg = 0;
-    davg = 0.0;
-    dmin = 1.0;
+    r267_stats->navg = 0;
+    r267_stats->davg = 0.0;
+    r267_stats->dmin = 1.0;
     //
     //  Update bins
     //
@@ -187,7 +194,9 @@ int main(int argc, char **argv) {
     const auto buffer_size = n;
     const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
-    r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &dmin, &davg, &navg);
+    printf("debug: blocks=%d, threads=%d\n", blocks, threads);
+    r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &r267_stats->dmin, &r267_stats->davg, &r267_stats->navg);
+    printf("in-kernel debug: navg=%d\n", r267_stats->navg);
     r267::move_helper<<<blocks, threads>>>(particles, size, buffer_size);
     //for (int i = 0; i < n; i++)
     //  ::move(particles[i]);
@@ -196,12 +205,12 @@ int main(int argc, char **argv) {
       //
       // Computing statistical data
       //
-      if (navg) {
-        absavg += davg / navg;
+      if (r267_stats->navg) {
+        absavg += r267_stats->davg / r267_stats->navg;
         nabsavg++;
       }
-      if (dmin < absmin)
-        absmin = dmin;
+      if (r267_stats->dmin < absmin)
+        absmin = r267_stats->dmin;
 
       //
       //  save if necessary
@@ -249,6 +258,7 @@ int main(int argc, char **argv) {
   if (fsum)
     fclose(fsum);
   rlib::cuda_assert(cudaFree(_cuda_managed_particles));
+  rlib::cuda_assert(cudaFree(r267_stats));
   if (fsave)
     fclose(fsave);
 
