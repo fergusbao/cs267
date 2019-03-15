@@ -67,6 +67,7 @@ void init_particles(int n, particle_t *p) {
     free(shuffle);
 }
 
+
 //
 //  interact two particles
 //
@@ -79,7 +80,7 @@ __device__ void apply_force(particle_t &particle, const particle_t &neighbor, do
     if (r > cutoff)
         return;
     auto magic = r / cutoff;
-    *dmin = std::min(magic, *dmin);
+    *dmin = min(magic, *dmin);
     (*davg) += magic;
     (*navg)++;
 

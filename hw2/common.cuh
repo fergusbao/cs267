@@ -103,4 +103,19 @@ namespace rlib {
 
 #define RLIB_CUDA_FOR(counter_var_name, counter_var_begin, counter_var_end) RLIB_IMPL_CUDA_FOR(counter_var_name, RLIB_MACRO_DECAY(counter_var_begin), RLIB_MACRO_DECAY(counter_var_end))
 
+__device__ double fatomicMin(double *addr, double value)
+{
+    static_assert(sizeof(double) == sizeof(unsigned long long), "fuck");
+    double _old = *addr;
+    unsigned long long old = (unsigned long long)_old;
+    unsigned long long assumed;
+    if(_old <= value) return _old;
+    do
+    {
+        assumed = old;
+        old = atomicCAS((unsigned long long *)addr, assumed, value);
+    } while(old!=assumed);
+    return (double)old;
+}
+
 #endif

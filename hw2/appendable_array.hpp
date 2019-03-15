@@ -9,40 +9,40 @@ using std::size_t;
 namespace rlib {
     template <typename T>
     struct appendable_stdlayout_array {
-        size_t size, cap;
         T * mem;
+        size_t m_size, cap;
 
         appendable_stdlayout_array()
-            : size(0), cap(0), mem(nullptr) {}
+            : m_size(0), cap(0), mem(nullptr) {}
 
         // host-only function. we can write the device-only version easily but not necessary.
         // WARNING: NOT THREAD SAFE! You can make it thread-safe by simply wrap every member
         //  with std::atomic and use atomic fetch_add
         void push_back(T &&ele) {
             // NOT THREAD SAFE!
-            if(size >= cap) {
+            if(m_size >= cap) {
                 cap *= 2;
                 ++cap;
                 apply_new_cap();
             }
 
-            mem[size] = ele;
-            ++size;
+            mem[m_size] = ele;
+            ++m_size;
         }
         void push_back(const T &ele) {
             // NOT THREAD SAFE!
-            if(size >= cap) {
+            if(m_size >= cap) {
                 cap *= 2;
                 ++cap;
                 apply_new_cap();
             }
 
-            mem[size] = ele;
-            ++size;
+            mem[m_size] = ele;
+            ++m_size;
         }
 
         size_t size() const {
-            return size;
+            return m_size;
         }
 
         T * data() {
@@ -59,15 +59,15 @@ namespace rlib {
             return mem[index];
         }
 
-        void reserve(size_t size) {
-            if(size > cap) {
-                cap = size;
+        void reserve(size_t m_size) {
+            if(m_size > cap) {
+                cap = m_size;
                 apply_new_cap();
             }
         }
 
         void clear() {
-            size = 0;
+            m_size = 0;
             if(mem)
                 std::free(mem);
         }
@@ -77,7 +77,7 @@ namespace rlib {
             void *new_mem = std::realloc(mem, cap);
             if(new_mem == nullptr)
                 throw std::runtime_error("Failed to allocate memory.");
-            mem = new_mem;
+            mem = (T *)new_mem;
         }
     };
 }
