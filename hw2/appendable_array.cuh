@@ -2,7 +2,10 @@
 #define RLIB_CUDA_APPENDABLE_ARRAY
 
 #include <stdexcept>
-#include <memory>
+#include <cstring>
+
+#include "cuda_ass.cuh"
+#include <cstdio>
 
 using std::size_t;
 
@@ -68,15 +71,21 @@ namespace rlib {
 
         void clear() {
             m_size = 0;
-            if(mem)
-                std::free(mem);
+        }
+
+        ~appendable_stdlayout_array() {
+            if(mem != nullptr)
+                rlib::cuda_assert(cudaFree(mem));
         }
 
     private:
         void apply_new_cap() {
-            void *new_mem = std::realloc(mem, cap);
+            void *new_mem;
+            rlib::cuda_assert(cudaMallocManaged(&new_mem, cap));
             if(new_mem == nullptr)
                 throw std::runtime_error("Failed to allocate memory.");
+            if(mem != nullptr)
+                std::memcpy(new_mem, mem, m_size * sizeof(T));
             mem = (T *)new_mem;
         }
     };

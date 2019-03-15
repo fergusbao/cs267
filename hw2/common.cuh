@@ -5,7 +5,7 @@
 #include <cuda.h>
 #include <stdexcept>
 
-#include "macro.hpp"
+#include "cuda_ass.cuh"
 
 #if __cplusplus > 201103L
 #define RLIB_CONSTEXPR constexpr
@@ -76,24 +76,6 @@ constexpr double dt = 0.0005;
 double size;
 ///////////////////////// var in common.cpp
 
-namespace rlib {
-    inline void cuda_assert(cudaError_t err) {
-        if(err != cudaError::cudaSuccess)
-            throw std::runtime_error("CUDA runtime error: err code is " + std::to_string(err) + ", please refer to https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038");
-    }
-
-
-    //template <typename CudaErrorT, typename StringLike>
-    //inline void cuda_assert(CudaErrorT err, StringLike msg) {
-    //    if(err != cudaError.cudaSuccess)
-    //        throw std::runtime_error("CUDA runtime error: err code is " + std::to_string(err) + ", " + msg + ", please see https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html#group__CUDART__TYPES_1g3f51e3575c2178246db0a94a430e0038");
-    //}
-
-    //template <typename CudaErrorT>
-    //inline void cuda_assert(CudaErrorT err) {
-    //    cuda_assert(err, "");
-    //}
-}
 
 #define RLIB_IMPL_CUDA_FOR(counter_var, counter_var_begin, counter_var_end) \
     do { \

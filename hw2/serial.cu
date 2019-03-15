@@ -16,7 +16,7 @@
 #include "common.cu"
 // NOTE END
 
-#include "appendable_array.hpp"
+#include "appendable_array.cuh"
 
 using dict_element_type = rlib::appendable_stdlayout_array<int>; // Fake vector.
 
