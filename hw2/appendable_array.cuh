@@ -59,6 +59,7 @@ namespace rlib {
                     cap *= 2;
                     cap += 3;
                     dev_apply_new_cap();
+                    RLIB_IMPL_CUDA_UNLOCK(pLock);
                 }
                 else {
                     RLIB_IMPL_CUDA_ENLOCK(pLock);
