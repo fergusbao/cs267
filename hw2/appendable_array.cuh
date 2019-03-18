@@ -17,7 +17,8 @@ namespace rlib {
 
         appendable_stdlayout_array()
             : m_size(0), cap(0), mem(nullptr) {
-                rlib::cuda_assert(cudaMalloc(&pLock, sizeof(int)));
+                rlib::cuda_assert(cudaMallocManaged(&pLock, sizeof(int)));
+                *pLock = 0;
             }
 
         // host-only function. we can write the device-only version easily but not necessary.
