@@ -97,13 +97,13 @@ namespace r267 {
 
   __global__ void apply_force_helper(particle_t * __restrict__  particles, size_t buffer_size,
       dict_element_type * __restrict__ _dict_buf_ptr, int grid_size, 
-      double * __restrict__ _dmin, double * __restrict__ _davg, int * __restrict__ _navg) {
+      float * __restrict__ _dmin, double * __restrict__ _davg, int * __restrict__ _navg) {
     int navg = 0;
-    double dmin = 1.0, davg = 0;
+    double dmin = 1.0; double davg = 0;
     int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
     if(index < buffer_size) {
       apply_force_single_thread(particles, index, _dict_buf_ptr, grid_size, &dmin, &davg, &navg);
-      fatomicMin(_dmin, dmin);
+      ffatomicMin(_dmin, dmin);
       atomicAdd(_davg, davg);
       atomicAdd(_navg, navg);
     }
@@ -113,7 +113,8 @@ namespace r267 {
 
 struct _r267_stats {
   int navg;
-  double davg, dmin;
+  double davg;
+  float dmin;
 };
 
 //
@@ -197,9 +198,9 @@ int main(int argc, char **argv) {
     //printf("debug: blocks=%d, threads=%d\n", blocks, threads);
     r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &r267_stats->dmin, &r267_stats->davg, &r267_stats->navg);
     rlib::cuda_assert(cudaDeviceSynchronize());
-    //printf("in-kernel debug: navg=%d\n", r267_stats->navg);
+    //printf("in-kernel debug: dmin=%f\n", r267_stats->dmin);
     r267::move_helper<<<blocks, threads>>>(particles, size, buffer_size);
-    rlib::cuda_assert(cudaDeviceSynchronize());
+    //rlib::cuda_assert(cudaDeviceSynchronize());
     //for (int i = 0; i < n; i++)
     //  ::move(particles[i]);
 
