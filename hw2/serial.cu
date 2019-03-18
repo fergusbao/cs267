@@ -161,8 +161,6 @@ int main(int argc, char **argv) {
   FILE *fsave = savename ? fopen(savename, "w") : NULL;
   FILE *fsum = sumname ? fopen(sumname, "a") : NULL;
 
-  cudaDeviceReset();
-
   _r267_stats *r267_stats = nullptr;
   rlib::cuda_assert(cudaMallocManaged(&r267_stats, sizeof(_r267_stats)));
 
