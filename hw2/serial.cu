@@ -218,7 +218,9 @@ int main(int argc, char **argv) {
     //
     //  move particles
     //
+    rlib::cuda_assert(cudaDeviceSynchronize());
     r267::kernel_fill_dicts<<<1, 1>>>(_dict_buf_ptr.get(), grid_size, particles, n);
+    rlib::cuda_assert(cudaDeviceSynchronize());
     const auto buffer_size = n;
     const auto threads = std::min(buffer_size, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
@@ -228,6 +230,7 @@ int main(int argc, char **argv) {
     rlib::cuda_assert(cudaDeviceSynchronize());
     //printf("in-kernel debug: dmin=%f\n", r267_stats->dmin);
     r267::move_helper<<<blocks, threads>>>(particles, size, buffer_size);
+    rlib::cuda_assert(cudaDeviceSynchronize());
     //rlib::cuda_assert(cudaDeviceSynchronize());
     //for (int i = 0; i < n; i++)
     //  ::move(particles[i]);
