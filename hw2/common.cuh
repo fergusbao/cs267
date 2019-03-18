@@ -67,11 +67,11 @@ char *read_string(int argc, char **argv, const char *option,
 //
 //  tuned constants
 //
-constexpr double density = 0.0005;
-constexpr double mass = 0.01;
-constexpr double cutoff = 0.01;
-constexpr double min_r = (cutoff / 100);
-constexpr double dt = 0.0005;
+RLIB_CONSTEXPR double density = 0.0005;
+RLIB_CONSTEXPR double mass = 0.01;
+RLIB_CONSTEXPR double cutoff = 0.01;
+RLIB_CONSTEXPR double min_r = (cutoff / 100);
+RLIB_CONSTEXPR double dt = 0.0005;
 
 double size;
 ///////////////////////// var in common.cpp

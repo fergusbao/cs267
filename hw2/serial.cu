@@ -109,6 +109,19 @@ namespace r267 {
     }
     // else return
   }
+
+  __global__ void kernel_clear_dict(dict_element_type * __restrict__ _dict_buf_ptr, int grid_size) {
+    // WARNING: index should be 0-grid_size**2, rather than 0-n
+    int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
+    RLIB_MACRO_ACCESS_2D_DICT(0, index).clear();
+  }
+
+  __global__ void kernel_fill_dicts(dict_element_type * __restrict__ _dict_buf_ptr, int grid_size, particle_t * __restrict__ particles) {
+    int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
+    int a = floor(particles[index].x / cutoff);
+    int b = floor(particles[index].y / cutoff);
+    RLIB_MACRO_ACCESS_2D_DICT(a, b).thread_safe_push_back(index);
+  }
 }
 
 struct _r267_stats {
@@ -174,17 +187,23 @@ int main(int argc, char **argv) {
     //
     //  Update bins
     //
-    for (int i = 0; i < grid_size; i++) {
-      for (int j = 0; j < grid_size; j++) {
-        RLIB_MACRO_ACCESS_2D_DICT(i, j).clear();
-      }
+    {
+      const auto buffer_size = grid_size * grid_size;
+      const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
+      const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
+      r267::kernel_clear_dict<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size);
     }
+    //for (int i = 0; i < grid_size; i++) {
+    //  for (int j = 0; j < grid_size; j++) {
+    //    RLIB_MACRO_ACCESS_2D_DICT(i, j).clear();
+    //  }
+    //}
 
-    for (int i = 0; i < n; i++) {
-      int a = floor(particles[i].x / cutoff);
-      int b = floor(particles[i].y / cutoff);
-      RLIB_MACRO_ACCESS_2D_DICT(a, b).push_back(i);
-    }
+    //for (int i = 0; i < n; i++) {
+    //  int a = floor(particles[i].x / cutoff);
+    //  int b = floor(particles[i].y / cutoff);
+    //  RLIB_MACRO_ACCESS_2D_DICT(a, b).push_back(i);
+    //}
     //
     //  compute forces
     //
@@ -196,6 +215,7 @@ int main(int argc, char **argv) {
     const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
     //printf("debug: blocks=%d, threads=%d\n", blocks, threads);
+    r267::kernel_fill_dicts<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size, particles);
     r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &r267_stats->dmin, &r267_stats->davg, &r267_stats->navg);
     rlib::cuda_assert(cudaDeviceSynchronize());
     //printf("in-kernel debug: dmin=%f\n", r267_stats->dmin);
@@ -215,11 +235,6 @@ int main(int argc, char **argv) {
       if (r267_stats->dmin < absmin)
         absmin = r267_stats->dmin;
 
-      //
-      //  save if necessary
-      //
-      if (fsave && (step % SAVEFREQ) == 0)
-        save(fsave, n, particles);
     }
   }
   simulation_time = read_timer() - simulation_time;
