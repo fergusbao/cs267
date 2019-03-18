@@ -125,11 +125,11 @@ namespace rlib {
 
         __device__ bool dev_apply_new_cap() {
             void *new_mem = nullptr;
-            (cudaMalloc(&new_mem, cap));
+            rlib::dev_cuda_assert(cudaMalloc(&new_mem, cap));
             if(new_mem == nullptr)
                 return false;
             if(mem != nullptr) {
-                (memcpy(new_mem, mem, m_size * sizeof(T)));
+                rlib::dev_cuda_assert(memcpy(new_mem, mem, m_size * sizeof(T)));
                 // hope it success.......
                 //(cudaFree(mem)); // let it leak!!! It doesn't matter now.
             }
