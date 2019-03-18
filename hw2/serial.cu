@@ -187,6 +187,8 @@ int main(int argc, char **argv) {
   //
   double simulation_time = read_timer();
 
+  cudaDeviceReset();
+
   for (int step = 0; step < NSTEPS; step++) {
     r267_stats->navg = 0;
     r267_stats->davg = 0.0;
