@@ -125,6 +125,7 @@ namespace rlib {
 
         __device__ bool dev_apply_new_cap() {
             void *new_mem = nullptr;
+            printf("Allocating %llu b mem\n", cap);
             rlib::dev_cuda_assert(cudaMalloc(&new_mem, cap));
             if(new_mem == nullptr)
                 return false;
