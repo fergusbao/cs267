@@ -56,9 +56,8 @@ namespace rlib {
         _rlib_impl_cuda_check_again:
             if(m_size >= cap) {
                 if(RLIB_IMPL_CUDA_TRYLOCK(pLock)) {
-                    printf("hit\n");
                     cap *= 2;
-                    cap += 3;
+                    cap += 4;
                     bool res = dev_apply_new_cap();
                     if(res == false) printf("FUCK!\n");
                     RLIB_IMPL_CUDA_UNLOCK(pLock);
