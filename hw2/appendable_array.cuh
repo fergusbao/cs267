@@ -113,7 +113,7 @@ namespace rlib {
     private:
         __host__ void apply_new_cap() {
             void *new_mem;
-            rlib::cuda_assert(cudaMalloc(&new_mem, cap));
+            rlib::cuda_assert(cudaMalloc(&new_mem, cap * sizeof(T)));
             if(new_mem == nullptr)
                 throw std::runtime_error("Failed to allocate memory.");
             if(mem != nullptr) {
@@ -126,7 +126,7 @@ namespace rlib {
         __device__ bool dev_apply_new_cap() {
             void *new_mem = nullptr;
             printf("Allocating %llu b mem\n", cap);
-            rlib::dev_cuda_assert(cudaMalloc(&new_mem, cap));
+            rlib::dev_cuda_assert(cudaMalloc(&new_mem, cap * sizeof(T)));
             if(new_mem == nullptr)
                 return false;
             if(mem != nullptr) {
