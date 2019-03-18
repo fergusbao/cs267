@@ -59,7 +59,8 @@ namespace rlib {
                     printf("hit\n");
                     cap *= 2;
                     cap += 3;
-                    dev_apply_new_cap();
+                    bool res = dev_apply_new_cap();
+                    if(res == false) printf("FUCK!\n");
                     RLIB_IMPL_CUDA_UNLOCK(pLock);
                 }
                 else {
@@ -123,7 +124,7 @@ namespace rlib {
         }
 
         __device__ bool dev_apply_new_cap() {
-            void *new_mem;
+            void *new_mem = nullptr;
             (cudaMalloc(&new_mem, cap));
             if(new_mem == nullptr)
                 return false;
