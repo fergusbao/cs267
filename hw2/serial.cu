@@ -194,10 +194,12 @@ int main(int argc, char **argv) {
     const auto buffer_size = n;
     const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
-    printf("debug: blocks=%d, threads=%d\n", blocks, threads);
+    //printf("debug: blocks=%d, threads=%d\n", blocks, threads);
     r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &r267_stats->dmin, &r267_stats->davg, &r267_stats->navg);
-    printf("in-kernel debug: navg=%d\n", r267_stats->navg);
+    rlib::cuda_assert(cudaDeviceSynchronize());
+    //printf("in-kernel debug: navg=%d\n", r267_stats->navg);
     r267::move_helper<<<blocks, threads>>>(particles, size, buffer_size);
+    rlib::cuda_assert(cudaDeviceSynchronize());
     //for (int i = 0; i < n; i++)
     //  ::move(particles[i]);
 
