@@ -129,7 +129,7 @@ namespace rlib {
             if(new_mem == nullptr)
                 return false;
             if(mem != nullptr) {
-                rlib::dev_cuda_assert(memcpy(new_mem, mem, m_size * sizeof(T)));
+                memcpy(new_mem, mem, m_size * sizeof(T));
                 // hope it success.......
                 //(cudaFree(mem)); // let it leak!!! It doesn't matter now.
             }
