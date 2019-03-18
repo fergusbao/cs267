@@ -8,7 +8,7 @@ namespace rlib {
     }
     __device__ bool dev_cuda_assert(cudaError_t err) {
         if(err != cudaError::cudaSuccess) {
-            printf("FUCK! CUDA runtime error: %d, %s\n", err, cudaGetErrorString(err));
+            printf("FUCK! CUDA runtime error: %d, %s\n", err, "fuck");//cudaGetErrorString(err));
             return false;
         }
         return true;
