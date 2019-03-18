@@ -116,7 +116,14 @@ namespace r267 {
     RLIB_MACRO_ACCESS_2D_DICT(0, index).clear();
   }
 
-  __global__ void kernel_fill_dicts(dict_element_type * __restrict__ _dict_buf_ptr, int grid_size, particle_t * __restrict__ particles) {
+  __global__ void kernel_fill_dicts(dict_element_type * __restrict__ _dict_buf_ptr, int grid_size, particle_t * __restrict__ particles, int n) {
+    for(int index = 0; index < n; ++index) {
+      int a = floor(particles[index].x / cutoff);
+      int b = floor(particles[index].y / cutoff);
+      RLIB_MACRO_ACCESS_2D_DICT(a, b).thread_safe_push_back(index);
+    }
+    return;
+
     int index = threadIdx.x + blockIdx.x * CUDA_MAX_THREAD_PER_BLOCK;
     int a = floor(particles[index].x / cutoff);
     int b = floor(particles[index].y / cutoff);
@@ -211,11 +218,12 @@ int main(int argc, char **argv) {
     //
     //  move particles
     //
+    r267::kernel_fill_dicts<<<1, 1>>>(_dict_buf_ptr.get(), grid_size, particles, n);
     const auto buffer_size = n;
     const auto threads = std::min(buffer_size, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
     //printf("debug: blocks=%d, threads=%d\n", blocks, threads);
-    r267::kernel_fill_dicts<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size, particles);
+    //r267::kernel_fill_dicts<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size, particles);
     r267::apply_force_helper<<<blocks, threads>>>(particles, buffer_size, _dict_buf_ptr.get(), grid_size, &r267_stats->dmin, &r267_stats->davg, &r267_stats->navg);
     rlib::cuda_assert(cudaDeviceSynchronize());
     //printf("in-kernel debug: dmin=%f\n", r267_stats->dmin);
