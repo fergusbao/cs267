@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     //
     {
       const auto buffer_size = grid_size * grid_size;
-      const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
+      const auto threads = std::min(buffer_size, CUDA_MAX_THREAD_PER_BLOCK);
       const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
       r267::kernel_clear_dict<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size);
     }
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
     //  move particles
     //
     const auto buffer_size = n;
-    const auto threads = std::min(n, CUDA_MAX_THREAD_PER_BLOCK);
+    const auto threads = std::min(buffer_size, CUDA_MAX_THREAD_PER_BLOCK);
     const auto blocks = buffer_size / CUDA_MAX_THREAD_PER_BLOCK + 1;
     //printf("debug: blocks=%d, threads=%d\n", blocks, threads);
     r267::kernel_fill_dicts<<<blocks, threads>>>(_dict_buf_ptr.get(), grid_size, particles);
