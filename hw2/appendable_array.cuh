@@ -74,8 +74,8 @@ namespace rlib {
         }
 
         ~appendable_stdlayout_array() {
-            //if(mem != nullptr)
-            //    rlib::cuda_assert(cudaFree(mem));
+            if(mem != nullptr)
+                rlib::cuda_assert(cudaFree(mem));
             // Never free memory to make program faster.
         }
 
@@ -89,7 +89,25 @@ namespace rlib {
                 std::memcpy(new_mem, mem, m_size * sizeof(T));
             mem = (T *)new_mem;
         }
+
+    public:
+        // Make this class available in cudaManaged memory automatically.
+        static void *operator new(size_t size) {
+            void *ptr = nullptr;
+            rlib::cuda_assert(cudaMallocManaged(&ptr, size));
+            return ptr;
+        }
+        static void *operator new[](size_t size) {
+            return operator new(size);
+        }
+        static void operator delete(void *ptr) {
+            rlib::cuda_assert(cudaFree(ptr));
+        }
+        static void operator delete[](void *ptr) {
+            return operator delete(ptr);
+        }
     };
+
 }
 
 #endif
