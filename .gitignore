@@ -17,6 +17,7 @@ hw2/prof
 hw2/autograder
 hw2/hackaday_hw2
 hw2/mpi
+hw2/array_test
 *.log
 .vscode
 *.tar.gz
