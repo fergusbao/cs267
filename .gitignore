@@ -23,3 +23,6 @@ hw2/array_test
 *.tar.gz
 
 hw3/kmer_hash
+hw3/include
+hw3/smaller
+hw3/kv_test

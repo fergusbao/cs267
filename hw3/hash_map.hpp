@@ -4,8 +4,17 @@
 #include "kmer_t.hpp"
 #include "dist_kv_store.hpp"
 
+namespace std {
+  template <>
+  struct hash <pkmer_t> {
+    size_t operator()(const pkmer_t &p) const {
+      return p.hash();
+    }
+  };
+}
+
 struct HashMap {
-  HashMap() : real_db(upcxx::rank_me(), upcxx::rank_n()) {
+  HashMap(std::size_t) : real_db(upcxx::rank_me(), upcxx::rank_n()) {
 
   }
 

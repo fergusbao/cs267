@@ -10,7 +10,9 @@
 
 #include <upcxx/upcxx.hpp>
 #include <functional>
-#include <rlib/stdio.hpp>
+#include <stdexcept>
+#include <mutex>
+#include "rlib.stdio.min.hpp"
 
 #ifndef R267_KVS_SLOT_PER_NODE
 #define R267_KVS_SLOT_PER_NODE 1024
@@ -23,7 +25,8 @@ public:
     using key_type = KeyType;
     using value_type = ValueType;
     using hash_engine_type = HashEngineType;
-    using hash_type = typename hash_engine_type::result_type;
+    //using hash_type = typename hash_engine_type::result_type;
+    using hash_type = std::size_t;
     using equal_engine_type = EqualEngineType;
     // kv_type should be default_constructable.
 
@@ -37,7 +40,7 @@ public:
             return do_insert(k, v);
         }
         else {
-            bool succ = upcxx::rpc(target_rank, &this_type::do_rpc_insert, this, k, v).wait();
+            bool succ = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_insert, this, k, v)).wait();
             if(not succ)
                 throw std::runtime_error("RPC insert failed.");
         }
@@ -48,7 +51,7 @@ public:
             return std::make_pair(true, do_find(k));
         }
         else {
-            auto res = upcxx::rpc(target_rank, &this_type::do_rpc_find, this, k).wait();
+            auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_find, this, k)).wait();
             if(not res.success)
                 throw std::runtime_error("RPC find failed.");
             return std::make_pair(res.found, res.val);
@@ -59,7 +62,7 @@ private:
 
     bool do_rpc_insert(key_type k, value_type v) {
         try {
-            insert(k, v);
+            do_insert(k, v);
             return true;
         }
         catch(std::exception &e) {
@@ -88,29 +91,38 @@ private:
 
     void do_insert(const key_type &k, const value_type &v) {
         auto &target_ls = find_slot(k);
-        for(auto &ele : target_ls) {
-            if(equal_engine_type{}(ele.first, k)) {
-                ele.second = v;
-                return; // Done.
+        {
+            std::lock_guard<std::mutex> _(local_buf_mut);
+            for(auto &ele : target_ls) {
+                if(equal_engine_type{}(ele.first, k)) {
+                    ele.second = v;
+                    return; // Done.
+                }
             }
+            // duplicate element not found. Insert it.
+            target_ls.push_front(std::make_pair(k, v));
         }
-        // duplicate element not found. Insert it.
-        target_ls.push_front(std::make_pair(k, v));
     }
 
     const value_type &do_find(const key_type &k) const {
         const auto &target_ls = find_slot(k);
-        for(const auto &ele : target_ls) {
-            if(equal_engine_type{}(ele.first, k))
-                return ele.second;
+        {
+            std::lock_guard<std::mutex> _(local_buf_mut);
+            for(const auto &ele : target_ls) {
+                if(equal_engine_type{}(ele.first, k))
+                    return ele.second;
+            }
         }
         throw std::out_of_range("Element not found.");
     }
     value_type &do_find(const key_type &k) {
         auto &target_ls = find_slot(k);
-        for(auto &ele : target_ls) {
-            if(equal_engine_type{}(ele.first, k))
-                return ele.second;
+        {
+            std::lock_guard<std::mutex> _(local_buf_mut);
+            for(auto &ele : target_ls) {
+                if(equal_engine_type{}(ele.first, k))
+                    return ele.second;
+            }
         }
         throw std::out_of_range("Element not found.");
     }
@@ -147,6 +159,7 @@ private:
     std::vector<std::list<std::pair<key_type, value_type>>> local_buf;
     static constexpr size_t slot_per_node = R267_KVS_SLOT_PER_NODE;
     size_t my_rank, n_rank;
+    mutable std::mutex local_buf_mut; // TODO: Every vector entry need a distinct lock! DO NOT USE GLOBAL LOCK!
 };
 
 #endif
