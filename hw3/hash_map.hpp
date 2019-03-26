@@ -2,7 +2,29 @@
 
 #include <upcxx/upcxx.hpp>
 #include "kmer_t.hpp"
+#include "dist_kv_store.hpp"
 
+struct HashMap {
+  HashMap() : real_db(upcxx::rank_me(), upcxx::rank_n()) {
+
+  }
+
+  bool insert(const kmer_pair &kmer) {
+    real_db.push(kmer.kmer, kmer);
+    return true;
+  }
+  bool find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
+    auto res = real_db[key_kmer];
+    if(res.first)
+      val_kmer = res.second;
+    return res.first;
+  }
+
+private:
+  kv_store<pkmer_t, kmer_pair> real_db;
+};
+
+/*
 struct HashMap {
   std::vector <kmer_pair> data;
   std::vector <int> used;
@@ -29,13 +51,13 @@ struct HashMap {
   bool slot_used(uint64_t slot);
 };
 
-HashMap::HashMap(size_t size) {
+inline HashMap::HashMap(size_t size) {
   my_size = size;
   data.resize(size);
   used.resize(size, 0);
 }
 
-bool HashMap::insert(const kmer_pair &kmer) {
+inline bool HashMap::insert(const kmer_pair &kmer) {
   uint64_t hash = kmer.hash();
   uint64_t probe = 0;
   bool success = false;
@@ -49,7 +71,7 @@ bool HashMap::insert(const kmer_pair &kmer) {
   return success;
 }
 
-bool HashMap::find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
+inline bool HashMap::find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
   uint64_t hash = key_kmer.hash();
   uint64_t probe = 0;
   bool success = false;
@@ -65,19 +87,19 @@ bool HashMap::find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
   return success;
 }
 
-bool HashMap::slot_used(uint64_t slot) {
+inline bool HashMap::slot_used(uint64_t slot) {
   return used[slot] != 0;
 }
 
-void HashMap::write_slot(uint64_t slot, const kmer_pair &kmer) {
+inline void HashMap::write_slot(uint64_t slot, const kmer_pair &kmer) {
   data[slot] = kmer;
 }
 
-kmer_pair HashMap::read_slot(uint64_t slot) {
+inline kmer_pair HashMap::read_slot(uint64_t slot) {
   return data[slot];
 }
 
-bool HashMap::request_slot(uint64_t slot) {
+inline bool HashMap::request_slot(uint64_t slot) {
   if (used[slot] != 0) {
     return false;
   } else {
@@ -86,6 +108,7 @@ bool HashMap::request_slot(uint64_t slot) {
   }
 }
 
-size_t HashMap::size() const noexcept {
+inline size_t HashMap::size() const noexcept {
   return my_size;
 }
+*/

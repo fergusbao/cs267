@@ -1,6 +1,6 @@
 # source `modules.sh` before attempting to build or run.
 
-CXX = CC
+CXX ?= upcxx
 
 # upcxx-meta PPFLAGS are really CFLAGS to be used during compilation
 # upcxx-meta LDFLAGS are really CFLAGS to be used during linking

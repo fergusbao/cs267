@@ -21,3 +21,5 @@ hw2/array_test
 *.log
 .vscode
 *.tar.gz
+
+hw3/kmer_hash
