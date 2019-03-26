@@ -1,6 +1,10 @@
 # source `modules.sh` before attempting to build or run.
 
-CXX ?= upcxx
+# The hashtable slots_per_node will be int(PASSED_SIZE/SIZE_HINT_FACTOR).
+# Make it larger if you have more nodes!
+# If SIZEHINT is smaller, the program is always quicker, and always consumes more RAM.
+SIZEHINT ?= 3.0 # Single process
+CXX = upcxx -O3 -std=c++14 -DHASHMAP_SIZE_HINT_FACTOR=$(SIZEHINT)
 
 # upcxx-meta PPFLAGS are really CFLAGS to be used during compilation
 # upcxx-meta LDFLAGS are really CFLAGS to be used during linking

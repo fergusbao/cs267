@@ -14,8 +14,8 @@
 #include <mutex>
 #include "rlib.stdio.min.hpp"
 
-#ifndef R267_KVS_SLOT_PER_NODE
-#define R267_KVS_SLOT_PER_NODE 1024
+#ifndef R267_KVS_DEF_SLOT_PER_NODE
+#define R267_KVS_DEF_SLOT_PER_NODE 1024
 #endif
 
 template <typename KeyType, typename ValueType, typename HashEngineType = std::hash<KeyType>, typename EqualEngineType = std::equal_to<KeyType>>
@@ -25,13 +25,18 @@ public:
     using key_type = KeyType;
     using value_type = ValueType;
     using hash_engine_type = HashEngineType;
-    //using hash_type = typename hash_engine_type::result_type;
-    using hash_type = std::size_t;
+    using hash_type = decltype(hash_engine_type{}(key_type{}));
+    //using hash_type = std::size_t;
+    static_assert(std::is_same<hash_type, std::size_t>(), "Invalid hash function: ISO C++17 standard requires that hash_type is always std::size_t");
     using equal_engine_type = EqualEngineType;
     // kv_type should be default_constructable.
 
-    kv_store(size_t my_rank, size_t n_rank)
-        : local_buf(slot_per_node), my_rank(my_rank), n_rank(n_rank) {
+private:
+    using slot_type = std::list<std::pair<key_type, value_type>>;
+
+public:
+    kv_store(size_t my_rank, size_t n_rank, size_t slot_per_node = R267_KVS_DEF_SLOT_PER_NODE)
+        : local_buf(slot_per_node), mut_local_buf(slot_per_node), my_rank(my_rank), n_rank(n_rank) {
     }
 
     void push(const key_type &k, const value_type &v) {
@@ -90,7 +95,9 @@ private:
     };
 
     void do_insert(const key_type &k, const value_type &v) {
-        auto &target_ls = find_slot(k);
+        auto target_ls_and_lock = find_slot(k);
+        auto &target_ls = target_ls_and_lock.first;
+        auto &local_buf_mut = target_ls_and_lock.second;
         {
             std::lock_guard<std::mutex> _(local_buf_mut);
             for(auto &ele : target_ls) {
@@ -105,7 +112,9 @@ private:
     }
 
     const value_type &do_find(const key_type &k) const {
-        const auto &target_ls = find_slot(k);
+        auto target_ls_and_lock = find_slot(k);
+        const auto &target_ls = target_ls_and_lock.first;
+        auto &local_buf_mut = target_ls_and_lock.second;
         {
             std::lock_guard<std::mutex> _(local_buf_mut);
             for(const auto &ele : target_ls) {
@@ -116,7 +125,9 @@ private:
         throw std::out_of_range("Element not found.");
     }
     value_type &do_find(const key_type &k) {
-        auto &target_ls = find_slot(k);
+        auto target_ls_and_lock = find_slot(k);
+        auto &target_ls = target_ls_and_lock.first;
+        auto &local_buf_mut = target_ls_and_lock.second;
         {
             std::lock_guard<std::mutex> _(local_buf_mut);
             for(auto &ele : target_ls) {
@@ -127,21 +138,22 @@ private:
         throw std::out_of_range("Element not found.");
     }
 
-    auto &find_slot(const key_type &k) {
+    auto find_slot(const key_type &k) const {
         auto hash = find_hash_for_ele(k);
         if(my_rank != find_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
-        return local_buf.at(find_local_slot_num_for_hash(hash));
+        auto pos = find_local_slot_num_for_hash(hash);
+        return std::pair<const slot_type &, std::mutex &>{std::cref(local_buf.at(pos)), std::ref(mut_local_buf.at(pos))};
     }
-    const auto &find_slot(const key_type &k) const {
+    auto find_slot(const key_type &k) {
         auto hash = find_hash_for_ele(k);
         if(my_rank != find_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
-        return local_buf.at(find_local_slot_num_for_hash(hash));
+        auto pos = find_local_slot_num_for_hash(hash);
+        return std::pair<slot_type &, std::mutex &>{std::ref(local_buf.at(pos)), std::ref(mut_local_buf.at(pos))};
     }
-
 
 private:
     inline auto find_rank_for_hash(hash_type h) const {
@@ -149,6 +161,7 @@ private:
     }
     inline auto find_local_slot_num_for_hash(hash_type h) const {
         // The result is the same in all nodes.
+        const auto slot_per_node = local_buf.size();
         return h / n_rank % slot_per_node;
     }
     inline auto find_hash_for_ele(const key_type &k) const {
@@ -156,10 +169,9 @@ private:
         return h;
     }
 
-    std::vector<std::list<std::pair<key_type, value_type>>> local_buf;
-    static constexpr size_t slot_per_node = R267_KVS_SLOT_PER_NODE;
+    std::vector<slot_type> local_buf;
+    mutable std::vector<std::mutex> mut_local_buf;
     size_t my_rank, n_rank;
-    mutable std::mutex local_buf_mut; // TODO: Every vector entry need a distinct lock! DO NOT USE GLOBAL LOCK!
 };
 
 #endif

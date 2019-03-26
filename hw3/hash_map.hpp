@@ -13,8 +13,12 @@ namespace std {
   };
 }
 
+#ifndef HASHMAP_SIZE_HINT_FACTOR
+#define HASHMAP_SIZE_HINT_FACTOR 8
+#endif
+
 struct HashMap {
-  HashMap(std::size_t) : real_db(upcxx::rank_me(), upcxx::rank_n()) {
+  HashMap(std::size_t size_hint) : real_db(upcxx::rank_me(), upcxx::rank_n(), (float)size_hint/HASHMAP_SIZE_HINT_FACTOR) {
 
   }
 
