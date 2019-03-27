@@ -4,7 +4,7 @@
 # Make it larger if you have more nodes!
 # If SIZEHINT is smaller, the program is always quicker, and always consumes more RAM.
 SIZEHINT ?= 3.0 # Single process
-CXX = upcxx -O3 -std=c++14 -DHASHMAP_SIZE_HINT_FACTOR=$(SIZEHINT)
+CXX = upcxx -O3 -std=c++14 -DHASHMAP_SIZE_HINT_FACTOR=$(SIZEHINT) -g
 
 # upcxx-meta PPFLAGS are really CFLAGS to be used during compilation
 # upcxx-meta LDFLAGS are really CFLAGS to be used during linking

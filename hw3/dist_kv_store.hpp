@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <mutex>
 #include "rlib.stdio.min.hpp"
+#include "rlib_concurrent_list.hpp"
 
 #ifndef R267_KVS_DEF_SLOT_PER_NODE
 #define R267_KVS_DEF_SLOT_PER_NODE 1024
@@ -32,7 +33,8 @@ public:
     // kv_type should be default_constructable.
 
 private:
-    using slot_type = std::list<std::pair<key_type, value_type>>;
+    //using slot_type = std::list<std::pair<key_type, value_type>>;
+    using slot_type = rlib::concurrency::single_list<std::pair<key_type, value_type>>;
 
 public:
     kv_store(size_t my_rank, size_t n_rank, size_t slot_per_node = R267_KVS_DEF_SLOT_PER_NODE)
@@ -107,7 +109,8 @@ private:
                 }
             }
             // duplicate element not found. Insert it.
-            target_ls.push_front(std::make_pair(k, v));
+            // target_ls.push_front(std::make_pair(k, v));
+            target_ls.push_back(std::make_pair(k, v));
         }
     }
 
