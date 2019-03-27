@@ -38,7 +38,7 @@ private:
 
 public:
     kv_store(size_t my_rank, size_t n_rank, size_t slot_per_node = R267_KVS_DEF_SLOT_PER_NODE)
-        : local_buf(slot_per_node), mut_local_buf(slot_per_node), my_rank(my_rank), n_rank(n_rank) {
+        : local_buf(slot_per_node), my_rank(my_rank), n_rank(n_rank) {
     }
 
     void push(const key_type &k, const value_type &v) {
@@ -97,11 +97,8 @@ private:
     };
 
     void do_insert(const key_type &k, const value_type &v) {
-        auto target_ls_and_lock = find_slot(k);
-        auto &target_ls = target_ls_and_lock.first;
-        auto &local_buf_mut = target_ls_and_lock.second;
+        auto &target_ls = find_slot(k);
         {
-            std::lock_guard<std::mutex> _(local_buf_mut);
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k)) {
                     ele.second = v;
@@ -115,11 +112,8 @@ private:
     }
 
     const value_type &do_find(const key_type &k) const {
-        auto target_ls_and_lock = find_slot(k);
-        const auto &target_ls = target_ls_and_lock.first;
-        auto &local_buf_mut = target_ls_and_lock.second;
+        const auto &target_ls = find_slot(k);
         {
-            std::lock_guard<std::mutex> _(local_buf_mut);
             for(const auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
                     return ele.second;
@@ -128,11 +122,8 @@ private:
         throw std::out_of_range("Element not found.");
     }
     value_type &do_find(const key_type &k) {
-        auto target_ls_and_lock = find_slot(k);
-        auto &target_ls = target_ls_and_lock.first;
-        auto &local_buf_mut = target_ls_and_lock.second;
+        auto &target_ls = find_slot(k);
         {
-            std::lock_guard<std::mutex> _(local_buf_mut);
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
                     return ele.second;
@@ -141,21 +132,21 @@ private:
         throw std::out_of_range("Element not found.");
     }
 
-    auto find_slot(const key_type &k) const {
+    const auto &find_slot(const key_type &k) const {
         auto hash = find_hash_for_ele(k);
         if(my_rank != find_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
         auto pos = find_local_slot_num_for_hash(hash);
-        return std::pair<const slot_type &, std::mutex &>{std::cref(local_buf.at(pos)), std::ref(mut_local_buf.at(pos))};
+        return local_buf.at(pos);
     }
-    auto find_slot(const key_type &k) {
+    auto &find_slot(const key_type &k) {
         auto hash = find_hash_for_ele(k);
         if(my_rank != find_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
         auto pos = find_local_slot_num_for_hash(hash);
-        return std::pair<slot_type &, std::mutex &>{std::ref(local_buf.at(pos)), std::ref(mut_local_buf.at(pos))};
+        return local_buf.at(pos);
     }
 
 private:
@@ -173,7 +164,6 @@ private:
     }
 
     std::vector<slot_type> local_buf;
-    mutable std::vector<std::mutex> mut_local_buf;
     size_t my_rank, n_rank;
 };
 
