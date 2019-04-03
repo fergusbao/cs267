@@ -12,6 +12,7 @@ stages:
 build:
   stage: build
   script:
+    - export PATH="/opt/upcxx/bin/:$PATH"
     - cd hw3 && make
   artifacts:
     paths:
