@@ -55,7 +55,7 @@ public:
     std::pair<bool, value_type> operator[](const key_type &k) const {
         auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
         if(my_rank == target_rank) {
-            return std::make_pair(true, do_find(k));
+            return std::make_pair(true, *do_find(k));
         }
         else {
             auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_find, this, k)).wait();
@@ -63,6 +63,21 @@ public:
                 throw std::runtime_error("RPC find failed.");
             return std::make_pair(res.found, res.val);
         }
+    }
+
+    bool push_if_is_mine(const key_type &k, const value_type &v) {
+        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+        if(my_rank == target_rank) {
+            do_insert(k, v);
+        }
+        return my_rank == target_rank;
+    }
+    std::pair<bool, value_type> find_if_is_mine(const key_type &k) {
+        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+        if(my_rank == target_rank)
+            return std::make_pair(true, *do_find(k));
+        else
+            return std::make_pair(false, value_type{});
     }
 
 private:
@@ -79,10 +94,11 @@ private:
     }
     auto do_rpc_find(key_type k) const {
         try {
-            return rpc_find_result{true, true, do_find(k)};
-        }
-        catch(std::out_of_range &o) {
-            return rpc_find_result{false, true, value_type{}};
+            const auto *res = do_find(k, true);
+            if(res)
+                return rpc_find_result{true, true, *res};
+            else
+                return rpc_find_result{false, true, value_type{}};
         }
         catch(std::exception &e) {
             rlib::println(std::cerr, "Error: exception while executing rpc find: ", e.what());
@@ -111,25 +127,29 @@ private:
         }
     }
 
-    const value_type &do_find(const key_type &k) const {
+    const value_type *do_find(const key_type &k, bool no_throw = false) const {
         const auto &target_ls = find_slot(k);
         {
             for(const auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
-                    return ele.second;
+                    return &ele.second;
             }
         }
-        throw std::out_of_range("Element not found.");
+        if(not no_throw)
+            throw std::out_of_range("Element not found.");
+        return nullptr;
     }
-    value_type &do_find(const key_type &k) {
+    value_type *do_find(const key_type &k, bool no_throw = false) {
         auto &target_ls = find_slot(k);
         {
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
-                    return ele.second;
+                    return &ele.second;
             }
         }
-        throw std::out_of_range("Element not found.");
+        if(not no_throw)
+            throw std::out_of_range("Element not found.");
+        return nullptr;
     }
 
     const auto &find_slot(const key_type &k) const {

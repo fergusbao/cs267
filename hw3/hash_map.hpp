@@ -23,8 +23,7 @@ struct HashMap {
   }
 
   bool insert(const kmer_pair &kmer) {
-    real_db.push(kmer.kmer, kmer);
-    return true;
+    return real_db.push_if_is_mine(kmer.kmer, kmer);
   }
   bool find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
     auto res = real_db[key_kmer];
