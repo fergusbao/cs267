@@ -24,6 +24,7 @@ build:
 test:
   stage: test
   script: 
-    - hw3/kmer_hash hw3/smaller/tiny.txt test
-    - sha1sum hw3/test_0.dat | grep 69af6081642850426f1b545ccf61b704820f5251
+    - wget https://recolic.net/tmp/tiny.txt
+    - hw3/kmer_hash tiny.txt test
+    - sha1sum test_0.dat | grep 69af6081642850426f1b545ccf61b704820f5251
    
