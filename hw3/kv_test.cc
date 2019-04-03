@@ -6,7 +6,7 @@ int main() {
     upcxx::init();
     kv_store<double, int> kvs(upcxx::rank_me(), upcxx::rank_n());
     try {
-        auto [succ, val] = kvs[1.23];
+        auto [succ, val] = kvs.get(1.23);
         if(succ)
             rlib::println("FUCK! succ! val is", val);
     }
@@ -16,16 +16,16 @@ int main() {
     upcxx::barrier(); // without this barrier, the access above may success at rank1.
    
     if(upcxx::rank_me() == 0) {
-        kvs.push(1.23, 666);
-        kvs.push(6.666, 123);
-        kvs.push(0.01, 99);
-        kvs.push(1., 111);
+        kvs.set(1.23, 666);
+        kvs.set(6.666, 123);
+        kvs.set(0.01, 99);
+        kvs.set(1., 111);
         rlib::println("pushed!");
     }
    
     upcxx::barrier();
 
-    auto [succ, val] = kvs[6.666];
+    auto [succ, val] = kvs.get(6.666);
     if(not succ)
         rlib::println("not succ!");
     rlib::println(upcxx::rank_me(), val);

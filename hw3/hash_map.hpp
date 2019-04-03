@@ -23,10 +23,10 @@ struct HashMap {
   }
 
   bool insert(const kmer_pair &kmer) {
-    return real_db.push_if_is_mine(kmer.kmer, kmer);
+    return real_db.set_if_is_mine(kmer.kmer, kmer);
   }
   bool find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
-    auto res = real_db[key_kmer];
+    auto res = real_db.get_if_is_mine(key_kmer);
     if(res.first)
       val_kmer = res.second;
     return res.first;

@@ -41,79 +41,79 @@ public:
         : local_buf(slot_per_node), my_rank(my_rank), n_rank(n_rank) {
     }
 
-    void push(const key_type &k, const value_type &v) {
-        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+    void set(const key_type &k, const value_type &v) {
+        auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank) {
-            return do_insert(k, v);
+            return do_set(k, v);
         }
         else {
-            bool succ = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_insert, this, k, v)).wait();
+            bool succ = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_set, this, k, v)).wait();
             if(not succ)
-                throw std::runtime_error("RPC insert failed.");
+                throw std::runtime_error("RPC set failed.");
         }
     }
-    std::pair<bool, value_type> operator[](const key_type &k) const {
-        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+    std::pair<bool, value_type> get(const key_type &k) const {
+        auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank) {
-            return std::make_pair(true, *do_find(k));
+            return std::make_pair(true, *do_get(k));
         }
         else {
-            auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_find, this, k)).wait();
+            auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_get, this, k)).wait();
             if(not res.success)
-                throw std::runtime_error("RPC find failed.");
+                throw std::runtime_error("RPC get failed.");
             return std::make_pair(res.found, res.val);
         }
     }
 
-    bool push_if_is_mine(const key_type &k, const value_type &v) {
-        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+    bool set_if_is_mine(const key_type &k, const value_type &v) {
+        auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank) {
-            do_insert(k, v);
+            do_set(k, v);
         }
         return my_rank == target_rank;
     }
-    std::pair<bool, value_type> find_if_is_mine(const key_type &k) {
-        auto target_rank = find_rank_for_hash(find_hash_for_ele(k));
+    std::pair<bool, value_type> get_if_is_mine(const key_type &k) {
+        auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank)
-            return std::make_pair(true, *do_find(k));
+            return std::make_pair(true, *do_get(k));
         else
             return std::make_pair(false, value_type{});
     }
 
 private:
 
-    bool do_rpc_insert(key_type k, value_type v) {
+    bool do_rpc_set(key_type k, value_type v) {
         try {
-            do_insert(k, v);
+            do_set(k, v);
             return true;
         }
         catch(std::exception &e) {
-            rlib::println(std::cerr, "Error: exception while executing rpc insert: ", e.what());
+            rlib::println(std::cerr, "Error: exception while executing rpc set: ", e.what());
             return false;
         }
     }
-    auto do_rpc_find(key_type k) const {
+    auto do_rpc_get(key_type k) const {
         try {
-            const auto *res = do_find(k, true);
+            const auto *res = do_get(k, true);
             if(res)
-                return rpc_find_result{true, true, *res};
+                return rpc_get_result{true, true, *res};
             else
-                return rpc_find_result{false, true, value_type{}};
+                return rpc_get_result{false, true, value_type{}};
         }
         catch(std::exception &e) {
-            rlib::println(std::cerr, "Error: exception while executing rpc find: ", e.what());
-            return rpc_find_result{false, false, value_type{}};
+            rlib::println(std::cerr, "Error: exception while executing rpc get: ", e.what());
+            return rpc_get_result{false, false, value_type{}};
         }
     }
 
 private:
-    struct rpc_find_result {
+    struct rpc_get_result {
         bool found, success;
         value_type val;
     };
 
-    void do_insert(const key_type &k, const value_type &v) {
-        auto &target_ls = find_slot(k);
+    void do_set(const key_type &k, const value_type &v) {
+        auto &target_ls = get_slot(k);
         {
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k)) {
@@ -127,8 +127,8 @@ private:
         }
     }
 
-    const value_type *do_find(const key_type &k, bool no_throw = false) const {
-        const auto &target_ls = find_slot(k);
+    const value_type *do_get(const key_type &k, bool no_throw = false) const {
+        const auto &target_ls = get_slot(k);
         {
             for(const auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
@@ -139,8 +139,8 @@ private:
             throw std::out_of_range("Element not found.");
         return nullptr;
     }
-    value_type *do_find(const key_type &k, bool no_throw = false) {
-        auto &target_ls = find_slot(k);
+    value_type *do_get(const key_type &k, bool no_throw = false) {
+        auto &target_ls = get_slot(k);
         {
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
@@ -152,33 +152,33 @@ private:
         return nullptr;
     }
 
-    const auto &find_slot(const key_type &k) const {
-        auto hash = find_hash_for_ele(k);
-        if(my_rank != find_rank_for_hash(hash)) {
+    const auto &get_slot(const key_type &k) const {
+        auto hash = get_hash_for_ele(k);
+        if(my_rank != get_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
-        auto pos = find_local_slot_num_for_hash(hash);
+        auto pos = get_local_slot_num_for_hash(hash);
         return local_buf.at(pos);
     }
-    auto &find_slot(const key_type &k) {
-        auto hash = find_hash_for_ele(k);
-        if(my_rank != find_rank_for_hash(hash)) {
+    auto &get_slot(const key_type &k) {
+        auto hash = get_hash_for_ele(k);
+        if(my_rank != get_rank_for_hash(hash)) {
             throw std::invalid_argument("This key doesn't belong to me.");
         }
-        auto pos = find_local_slot_num_for_hash(hash);
+        auto pos = get_local_slot_num_for_hash(hash);
         return local_buf.at(pos);
     }
 
 private:
-    inline auto find_rank_for_hash(hash_type h) const {
+    inline auto get_rank_for_hash(hash_type h) const {
         return h % n_rank;
     }
-    inline auto find_local_slot_num_for_hash(hash_type h) const {
+    inline auto get_local_slot_num_for_hash(hash_type h) const {
         // The result is the same in all nodes.
         const auto slot_per_node = local_buf.size();
         return h / n_rank % slot_per_node;
     }
-    inline auto find_hash_for_ele(const key_type &k) const {
+    inline auto get_hash_for_ele(const key_type &k) const {
         hash_type h = hash_engine_type{}(k);
         return h;
     }
