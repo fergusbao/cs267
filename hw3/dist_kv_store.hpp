@@ -55,7 +55,11 @@ public:
     std::pair<bool, value_type> get(const key_type &k) const {
         auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank) {
-            return std::make_pair(true, *do_get(k));
+            auto res = do_get(k, true);
+            if(res == nullptr)
+                return std::make_pair(false, value_type{});
+            else
+                return std::make_pair(true, *res);
         }
         else {
             auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_get, this, k)).wait();
@@ -74,8 +78,13 @@ public:
     }
     std::pair<bool, value_type> get_if_is_mine(const key_type &k) {
         auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
-        if(my_rank == target_rank)
-            return std::make_pair(true, *do_get(k));
+        if(my_rank == target_rank) {
+            auto res = do_get(k, true);
+            if(res == nullptr)
+                return std::make_pair(false, value_type{});
+            else
+                return std::make_pair(true, *res);
+        }
         else
             return std::make_pair(false, value_type{});
     }

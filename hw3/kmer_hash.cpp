@@ -11,6 +11,7 @@
 #include "kmer_t.hpp"
 #include "read_kmers.hpp"
 #include "hash_map.hpp"
+#include "upcxx_dist_vector.hpp"
 
 #include "butil.hpp"
 
@@ -87,30 +88,38 @@ int main(int argc, char **argv) {
 
   auto start_read = std::chrono::high_resolution_clock::now();
 
-  std::list <std::list <kmer_pair>> contigs;//assume it is global addressed
-  if (upcxx::rank_me()==0){
-    for (const auto &start_kmer : start_nodes) {
-      std::list <kmer_pair> contig;
-      contig.push_back(start_kmer);
-      contigs.push_back(contig);
+  //std::list <std::vector <kmer_pair>> contigs;//assume it is global addressed
+  upcxx_matrix<kmer_pair> contigs(hash_table_size);
+  size_t contigs_size = start_nodes.size();
+  if (upcxx::rank_me()==0) {
+    //contigs.set_rows(start_nodes.size());
+    for(auto cter = 0; cter < start_nodes.size(); ++cter) {
+      contigs.push_to_row(cter, start_nodes[cter]);
     }
+    //for (auto &&start_kmer : start_nodes) {
+      //contigs.push_back(std::vector<kmer_pair>{start_kmer});
+    //}
     //now broadcast contigs, and broadcast the number of contig inside contigs to every processor
   }
   
   // the following will be done by every processor
   bool all_done = false;
-  while (all_done==false){
-    for (int num=0;num<num_contig;num++){
-      check_if_this_contig_ends_with_F//update all_done
-      fetch_last_kmer_if_needed(contigs[i],upcxx::rank_me()).wait();
+  while (all_done == false) {
+    all_done = true;
+    for (auto row = 0; row < contigs_size; ++row){
+      kmer_pair this_contig_end = contigs.back_of_row(row);
+      if(this_contig_end.forwardExt() == 'F')
+        continue; // already done.
+      else
+        all_done = false;
+      kmer_pair next;
+      bool isMine = hashmap.find(this_contig_end.next_kmer(), next);
+      // check_if_this_contig_ends_with_F; //update all_done
+      //fetch_last_kmer_if_needed(contigs[i],upcxx::rank_me()).wait();
       //return success,and contigs[i].back().next_kmer()
-      if (fetch_last_kmer_if_needed.success==true){
-        kmer_pair kmer;
-        bool success = hashmap.find(fetch_last_kmer_if_needed.next_kmer, kmer);
-        if (!success) { 
-          //panic!
-        }
-        remotely_push_kmer_into_contig(contigs[i],kmer)
+      if (isMine){
+        contigs.push_to_row(row, next);
+        //remotely_push_kmer_into_contig(contigs[i],kmer);
         //contig.push_back(kmer);
       }
     }
@@ -125,10 +134,14 @@ int main(int argc, char **argv) {
     std::chrono::duration <double> insert = end_insert - start;
     std::chrono::duration <double> total = end - start;
 
-    int numKmers = std::accumulate(contigs.begin(), contigs.end(), 0,
-      [] (int sum, const std::list <kmer_pair> &contig) {
-        return sum + contig.size();
-      });
+    int numKmers = 0;
+    for(auto cter = 0; cter < contigs_size; ++cter) {
+      numKmers += contigs.get_cols_of_row(cter);
+    }
+    //int numKmers = std::accumulate(contigs.begin(), contigs.end(), 0,
+    //  [] (int sum, const std::list <kmer_pair> &contig) {
+    //    return sum + contig.size();
+    //  });
 
     if (run_type != "test") {
       BUtil::print("Assembled in %lf total\n", total.count());
@@ -136,14 +149,19 @@ int main(int argc, char **argv) {
 
     if (run_type == "verbose") {
       printf("Rank %d reconstructed %d contigs with %d nodes from %d start nodes."
-        " (%lf read, %lf insert, %lf total)\n", upcxx::rank_me(), contigs.size(),
+        " (%lf read, %lf insert, %lf total)\n", upcxx::rank_me(), contigs_size,
         numKmers, start_nodes.size(), read.count(), insert.count(), total.count());
     }
 
     if (run_type == "test") {
       std::ofstream fout("test_" + std::to_string(upcxx::rank_me()) + ".dat");
-      for (const auto &contig : contigs) {
-        fout << extract_contig(contig) << std::endl;
+      //for (const auto &contig : contigs) {
+      for(auto cter = 0; cter < contigs_size; ++cter) {
+        std::list<kmer_pair> real_contig;
+        auto len = contigs.get_cols_of_row(cter);
+        for(auto c = 0; c < len; ++c)
+          real_contig.emplace_back(contigs.get(cter, c));
+        fout << extract_contig(real_contig) << std::endl;
       }
       fout.close();
     }

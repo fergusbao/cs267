@@ -38,6 +38,7 @@ struct kmer_pair {
 
   bool operator==(const kmer_pair &kmer) const noexcept;
   bool operator!=(const kmer_pair &kmer) const noexcept;
+  uint64_t padding; // recolic: make sizeof(T) >= sizeof(uint64_t)
 };
 
 char kmer_pair::forwardExt() const noexcept {
