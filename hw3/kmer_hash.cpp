@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
       throw std::runtime_error("Error: HashMap is full!");
     }
 
-    if (kmer.backwardExt() == 'F') {
+    if (upcxx::rank_me()==0 and kmer.backwardExt() == 'F') {
       start_nodes.push_back(kmer);
     }
   }
@@ -87,52 +87,67 @@ int main(int argc, char **argv) {
 
   auto start_read = std::chrono::high_resolution_clock::now();
 
-  std::list <std::list <kmer_pair>> contigs;
-  for (const auto &start_kmer : start_nodes) {
-    std::list <kmer_pair> contig;
-    contig.push_back(start_kmer);
-    while (contig.back().forwardExt() != 'F') {
-      kmer_pair kmer;
-      bool success = hashmap.find(contig.back().next_kmer(), kmer);
-      if (!success) {
-        throw std::runtime_error("Error: k-mer not found in hashmap.");
-      }
-      contig.push_back(kmer);
+  std::list <std::list <kmer_pair>> contigs;//assume it is global addressed
+  if (upcxx::rank_me()==0){
+    for (const auto &start_kmer : start_nodes) {
+      std::list <kmer_pair> contig;
+      contig.push_back(start_kmer);
+      contigs.push_back(contig);
     }
-    contigs.push_back(contig);
+    //now broadcast contigs, and broadcast the number of contig inside contigs to every processor
   }
+  
+  // the following will be done by every processor
+  bool all_done = false;
+  while (all_done==false){
+    for (int num=0;num<num_contig;num++){
+      check_if_this_contig_ends_with_F//update all_done
+      fetch_last_kmer_if_needed(contigs[i],upcxx::rank_me()).wait();
+      //return success,and contigs[i].back().next_kmer()
+      if (fetch_last_kmer_if_needed.success==true){
+        kmer_pair kmer;
+        bool success = hashmap.find(fetch_last_kmer_if_needed.next_kmer, kmer);
+        if (!success) { 
+          //panic!
+        }
+        remotely_push_kmer_into_contig(contigs[i],kmer)
+        //contig.push_back(kmer);
+      }
+    }
+  }
+
 
   auto end_read = std::chrono::high_resolution_clock::now();
   upcxx::barrier();
   auto end = std::chrono::high_resolution_clock::now();
+  if (upcxx::rank_me()==0){
+    std::chrono::duration <double> read = end_read - start_read;
+    std::chrono::duration <double> insert = end_insert - start;
+    std::chrono::duration <double> total = end - start;
 
-  std::chrono::duration <double> read = end_read - start_read;
-  std::chrono::duration <double> insert = end_insert - start;
-  std::chrono::duration <double> total = end - start;
+    int numKmers = std::accumulate(contigs.begin(), contigs.end(), 0,
+      [] (int sum, const std::list <kmer_pair> &contig) {
+        return sum + contig.size();
+      });
 
-  int numKmers = std::accumulate(contigs.begin(), contigs.end(), 0,
-    [] (int sum, const std::list <kmer_pair> &contig) {
-      return sum + contig.size();
-    });
-
-  if (run_type != "test") {
-    BUtil::print("Assembled in %lf total\n", total.count());
-  }
-
-  if (run_type == "verbose") {
-    printf("Rank %d reconstructed %d contigs with %d nodes from %d start nodes."
-      " (%lf read, %lf insert, %lf total)\n", upcxx::rank_me(), contigs.size(),
-      numKmers, start_nodes.size(), read.count(), insert.count(), total.count());
-  }
-
-  if (run_type == "test") {
-    std::ofstream fout("test_" + std::to_string(upcxx::rank_me()) + ".dat");
-    for (const auto &contig : contigs) {
-      fout << extract_contig(contig) << std::endl;
+    if (run_type != "test") {
+      BUtil::print("Assembled in %lf total\n", total.count());
     }
-    fout.close();
-  }
 
+    if (run_type == "verbose") {
+      printf("Rank %d reconstructed %d contigs with %d nodes from %d start nodes."
+        " (%lf read, %lf insert, %lf total)\n", upcxx::rank_me(), contigs.size(),
+        numKmers, start_nodes.size(), read.count(), insert.count(), total.count());
+    }
+
+    if (run_type == "test") {
+      std::ofstream fout("test_" + std::to_string(upcxx::rank_me()) + ".dat");
+      for (const auto &contig : contigs) {
+        fout << extract_contig(contig) << std::endl;
+      }
+      fout.close();
+    }
+  }
   upcxx::finalize();
   return 0;
 }
