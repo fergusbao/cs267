@@ -70,7 +70,8 @@ int main(int argc, char **argv) {
   for (auto &kmer : kmers) {
     bool success = hashmap.insert(kmer);
     if (!success) {
-      throw std::runtime_error("Error: HashMap is full!");
+      // Recolic: this insert is set_if_is_mine now.
+      //throw std::runtime_error("Error: HashMap is full!");
     }
 
     if (upcxx::rank_me()==0 and kmer.backwardExt() == 'F') {

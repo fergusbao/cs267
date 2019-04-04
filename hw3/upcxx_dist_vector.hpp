@@ -56,7 +56,7 @@ public:
     static_assert(sizeof(T) >= sizeof(uint64_t), "T should larger than 64b");
     void set_rows(uint64_t val) {
         // set size of col 0
-        buf.set(index2key(SIZE_SLOT, 0), val);
+        buf.set(index2key(SIZE_SLOT, 0), *(T*)&val);
     }
     void push_to_row(uint64_t row_index, const T &data) {
         //std::cout << "push_to:" << row_index << std::endl;

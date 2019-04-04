@@ -18,13 +18,28 @@ build:
     paths:
       - hw3/kmer_hash
       - hw3/kv_test
+      - hw3/dvector_test
     expire_in: 20 minutes
 
 
-test:
+test_1proc_whole:
   stage: test
   script: 
     - wget https://recolic.net/tmp/tiny.txt
-    - hw3/kmer_hash tiny.txt test
+    - timeout 1m hw3/kmer_hash tiny.txt test
     - sha1sum test_0.dat | grep 69af6081642850426f1b545ccf61b704820f5251
-   
+
+test_par_whole:
+  stage: test
+  script: 
+    - export PATH="/opt/upcxx/bin/:$PATH"
+    - wget https://recolic.net/tmp/tiny.txt
+    - timeout 1m upcxx-run -n 16 hw3/kmer_hash tiny.txt test
+    - ls test_15.dat test_0.dat test_9.dat
+  
+test_component:
+  stage: test
+  script:
+    - export PATH="/opt/upcxx/bin/:$PATH"
+    - upcxx-run -n 2 hw3/kv_test
+    - upcxx-run -n 2 hw3/dvector_test

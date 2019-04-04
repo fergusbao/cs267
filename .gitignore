@@ -26,3 +26,4 @@ hw3/kmer_hash
 hw3/include
 hw3/smaller
 hw3/kv_test
+hw3/dvector_test

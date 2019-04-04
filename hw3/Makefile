@@ -13,7 +13,7 @@ CXX = upcxx -O3 -std=c++14 -DHASHMAP_SIZE_HINT_FACTOR=$(SIZEHINT) -g
 CXXFLAGS = `upcxx-meta PPFLAGS` `upcxx-meta LDFLAGS`
 LDFLAGS = `upcxx-meta LIBFLAGS`
 
-all: kmer_hash kv_naive_test
+all: kmer_hash kv_naive_test dvector_naive_test
 
 .PHONY: kmer_hash all
 
@@ -26,3 +26,5 @@ clean:
 kv_naive_test:
 	upcxx kv_test.cc -o kv_test -std=c++17 -z muldefs -g
 
+dvector_naive_test:
+	upcxx dvector_test.cc -o dvector_test -std=c++17 -z muldefs -g

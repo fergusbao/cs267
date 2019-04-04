@@ -8,7 +8,7 @@ int main() {
     try {
         auto [succ, val] = kvs.get(1.23);
         if(succ)
-            rlib::println("FUCK! succ! val is", val);
+            throw std::runtime_error("get empty db failed.");
     }
     catch(std::out_of_range &o) {
 
@@ -27,8 +27,9 @@ int main() {
 
     auto [succ, val] = kvs.get(6.666);
     if(not succ)
-        rlib::println("not succ!");
-    rlib::println(upcxx::rank_me(), val);
+        throw std::runtime_error("not succ!");
+    if(val != 123)
+        throw std::runtime_error("not succ!");
 
     upcxx::finalize();
 
