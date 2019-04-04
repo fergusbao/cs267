@@ -62,7 +62,9 @@ public:
                 return std::make_pair(true, *res);
         }
         else {
+            rlib::println("start rpc get ->", target_rank);
             auto res = upcxx::rpc(target_rank, std::bind(&this_type::do_rpc_get, this, k)).wait();
+            rlib::println("end rpc get ->", target_rank);
             if(not res.success)
                 throw std::runtime_error("RPC get failed.");
             return std::make_pair(res.found, res.val);
@@ -107,7 +109,9 @@ private:
     }
     auto do_rpc_get(key_type k) const {
         try {
+            rlib::println("do_get begin");
             const auto *res = do_get(k, true);
+            rlib::println("do_get end");
             if(res)
                 return rpc_get_result{true, true, *res};
             else
@@ -128,6 +132,7 @@ private:
     void do_set(const key_type &k, const value_type &v) {
         auto &target_ls = get_slot(k);
         {
+            //rlib::println("do_get slot size", target_ls.size());
             for(auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k)) {
                     ele.second = v;
@@ -143,6 +148,7 @@ private:
     const value_type *do_get(const key_type &k, bool no_throw = false) const {
         const auto &target_ls = get_slot(k);
         {
+            //rlib::println("do_get slot size", target_ls.size());
             for(const auto &ele : target_ls) {
                 if(equal_engine_type{}(ele.first, k))
                     return &ele.second;

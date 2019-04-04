@@ -6,6 +6,7 @@
 #include <numeric>
 #include <cstddef>
 #include <chrono>
+#include <thread>
 #include <upcxx/upcxx.hpp>
 
 #include "kmer_t.hpp"
@@ -14,6 +15,7 @@
 #include "upcxx_dist_vector.hpp"
 
 #include "butil.hpp"
+using namespace std::chrono_literals;
 
 int main(int argc, char **argv) {
   upcxx::init();
@@ -100,28 +102,33 @@ int main(int argc, char **argv) {
   }
   upcxx::barrier();
   uint64_t contigs_size = contigs.get_rows();
-  rlib::println("rank", upcxx::rank_me(), "contigs_size is", contigs_size);
+  rlib::println("rank", upcxx::rank_me(), "contigs_size is", contigs_size, "hash_table size", hashmap.counter);
   
+  if(upcxx::rank_me() == 0)
+    std::this_thread::sleep_for(1h); // for debug
   // the following will be done by every processor
   bool all_done = false;
   while (all_done == false) {
     all_done = true;
+    rlib::println("rank", upcxx::rank_me(), "enter loop");
     for (auto row = 0; row < contigs_size; ++row){
+      rlib::println("rank", upcxx::rank_me(), "fuckA");
       kmer_pair this_contig_end = contigs.back_of_row(row);
-      if(this_contig_end.forwardExt() == 'F')
-        continue; // already done.
-      else
+      rlib::println("rank", upcxx::rank_me(), "fuckB");
+      if(this_contig_end.forwardExt() != 'F') {
         all_done = false;
-      kmer_pair next;
-      rlib::println("debug: owner of next kmer is ", hashmap._debug_get_owner(this_contig_end.next_kmer()));
-      // TODO FIXME BUG: SHOULD FOUND BUT DOESN"T at rank 1
-      bool isMine = hashmap.find(this_contig_end.next_kmer(), next);
-      if (isMine){
-        contigs.push_to_row(row, next);
+        kmer_pair next;
+        rlib::println("rank", upcxx::rank_me(), "debug: owner of next kmer is ", hashmap._debug_get_owner(this_contig_end.next_kmer()));
+        // TODO FIXME BUG: SHOULD FOUND BUT DOESN"T at rank 1
+        bool isMine = hashmap.find(this_contig_end.next_kmer(), next);
+        rlib::println("rank", upcxx::rank_me(), "isMine=", isMine);
+        if (isMine)
+          contigs.push_to_row(row, next);
       }
     }
     rlib::println("All contig iterated. next round...");
   }
+  rlib::println("rank", upcxx::rank_me(), "passed main loop");
 
 
   auto end_read = std::chrono::high_resolution_clock::now();

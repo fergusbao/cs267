@@ -23,9 +23,12 @@ struct HashMap {
   }
 
   bool insert(const kmer_pair &kmer) {
+    ++counter;
+    rlib::println("inserting hash", std::hash<pkmer_t>{}(kmer.kmer));
     return real_db.set_if_is_mine(kmer.kmer, kmer);
   }
   bool find(const pkmer_t &key_kmer, kmer_pair &val_kmer) {
+    rlib::println("finding hash", std::hash<pkmer_t>{}(key_kmer));
     auto res = real_db.get_if_is_mine(key_kmer);
     if(res.first)
       val_kmer = res.second;
@@ -35,6 +38,7 @@ struct HashMap {
     return real_db._debug_get_owner(key_kmer);
   }
 
+  size_t counter = 0;
 private:
   kv_store<pkmer_t, kmer_pair> real_db;
 };
