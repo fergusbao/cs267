@@ -68,6 +68,10 @@ public:
             return std::make_pair(res.found, res.val);
         }
     }
+    size_t _debug_get_owner(const key_type &k) const {
+        auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
+        return target_rank;
+    }
 
     bool set_if_is_mine(const key_type &k, const value_type &v) {
         auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
@@ -76,7 +80,7 @@ public:
         }
         return my_rank == target_rank;
     }
-    std::pair<bool, value_type> get_if_is_mine(const key_type &k) {
+    std::pair<bool, value_type> get_if_is_mine(const key_type &k) const {
         auto target_rank = get_rank_for_hash(get_hash_for_ele(k));
         if(my_rank == target_rank) {
             auto res = do_get(k, true);

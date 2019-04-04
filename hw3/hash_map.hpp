@@ -31,6 +31,9 @@ struct HashMap {
       val_kmer = res.second;
     return res.first;
   }
+  size_t _debug_get_owner(const pkmer_t &key_kmer) {
+    return real_db._debug_get_owner(key_kmer);
+  }
 
 private:
   kv_store<pkmer_t, kmer_pair> real_db;

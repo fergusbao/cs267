@@ -56,35 +56,53 @@ public:
     static_assert(sizeof(T) >= sizeof(uint64_t), "T should larger than 64b");
     void set_rows(uint64_t val) {
         // set size of col 0
-        buf.set(index2key(SIZE_SLOT, 0), *(T*)&val);
+        set_size_ele(SIZE_SLOT, 0, val);
+    }
+    uint64_t get_rows() {
+        return get_size_ele(SIZE_SLOT, 0);
     }
     void push_to_row(uint64_t row_index, const T &data) {
-        //std::cout << "push_to:" << row_index << std::endl;
+        std::cout << "rank" << upcxx::rank_me() << "push_to:" << row_index << std::endl;
         // WARNING WARNING WARNING!!! NOT PROCESS SAFE!!! NOT THREAD SAFE!!!
         auto curr_size = get_cols_of_row(row_index);
-        buf.set(index2key(row_index, curr_size), data);
+        set(row_index, curr_size, data);
         // Warning: possible corruption here. 
         set_cols_of_row(row_index, curr_size + 1);
     }
     uint64_t get_cols_of_row(uint64_t row_index) const {
-        auto curr_size_res = buf.get(index2key(row_index, SIZE_SLOT));
-        if(curr_size_res.first == false) // not found
-            return 0;
-        return *(const uint64_t *)&curr_size_res.second;
+        return get_size_ele(row_index, SIZE_SLOT);
     }
     void set_cols_of_row(uint64_t row_index, uint64_t cols) {
-        buf.set(index2key(row_index, SIZE_SLOT), *(T*)(&cols));
+        set_size_ele(row_index, SIZE_SLOT, cols);
     }
     auto back_of_row(uint64_t row_index) const {
         return get(row_index, get_cols_of_row(row_index)-1);
     }
 
     auto get(uint64_t row, uint64_t col) const {
-        //std::cout << "get:" << row << ":" << col << std::endl;
+        rlib::println("get:", row, col);
         auto res = buf.get(index2key(row, col));
         if(res.first == false)
             throw std::out_of_range("matrix::get index out of range");
         return res.second;
+    }
+    void set(uint64_t row, uint64_t col, const T &data) {
+        buf.set(index2key(row, col), data);
+    }
+    uint64_t get_size_ele(uint64_t row, uint64_t col) const {
+        try {
+            auto res = get(row, col);
+            auto converted = *(const uint64_t *)&res;
+            rlib::println("get_size_ele at", row, col, "yields", converted);
+            return converted;
+        }
+        catch(std::out_of_range &) {
+            rlib::println("get_size_ele at", row, col, "yields", 0);
+            return 0;
+        }
+    }
+    void set_size_ele(uint64_t row, uint64_t col, uint64_t val) {
+        set(row, col, *(T *)&val);
     }
 
 private:

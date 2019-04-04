@@ -27,3 +27,4 @@ hw3/include
 hw3/smaller
 hw3/kv_test
 hw3/dvector_test
+hw3/*.dat

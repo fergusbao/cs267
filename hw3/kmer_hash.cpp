@@ -89,19 +89,18 @@ int main(int argc, char **argv) {
 
   auto start_read = std::chrono::high_resolution_clock::now();
 
-  //std::list <std::vector <kmer_pair>> contigs;//assume it is global addressed
   upcxx_matrix<kmer_pair> contigs(hash_table_size);
-  size_t contigs_size = start_nodes.size();
   if (upcxx::rank_me()==0) {
-    //contigs.set_rows(start_nodes.size());
+    contigs.set_rows(start_nodes.size());
     for(auto cter = 0; cter < start_nodes.size(); ++cter) {
       contigs.push_to_row(cter, start_nodes[cter]);
+      rlib::println("debug");
     }
-    //for (auto &&start_kmer : start_nodes) {
-      //contigs.push_back(std::vector<kmer_pair>{start_kmer});
-    //}
     //now broadcast contigs, and broadcast the number of contig inside contigs to every processor
   }
+  upcxx::barrier();
+  uint64_t contigs_size = contigs.get_rows();
+  rlib::println("rank", upcxx::rank_me(), "contigs_size is", contigs_size);
   
   // the following will be done by every processor
   bool all_done = false;
@@ -114,16 +113,14 @@ int main(int argc, char **argv) {
       else
         all_done = false;
       kmer_pair next;
+      rlib::println("debug: owner of next kmer is ", hashmap._debug_get_owner(this_contig_end.next_kmer()));
+      // TODO FIXME BUG: SHOULD FOUND BUT DOESN"T at rank 1
       bool isMine = hashmap.find(this_contig_end.next_kmer(), next);
-      // check_if_this_contig_ends_with_F; //update all_done
-      //fetch_last_kmer_if_needed(contigs[i],upcxx::rank_me()).wait();
-      //return success,and contigs[i].back().next_kmer()
       if (isMine){
         contigs.push_to_row(row, next);
-        //remotely_push_kmer_into_contig(contigs[i],kmer);
-        //contig.push_back(kmer);
       }
     }
+    rlib::println("All contig iterated. next round...");
   }
 
 
